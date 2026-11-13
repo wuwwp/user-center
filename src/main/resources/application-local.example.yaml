@@ -1,4 +1,17 @@
 # 本地开发配置模板：复制为 application-local.yaml 后填写真实值（该文件已被 .gitignore 忽略）
+# JWT secret 生成方式：openssl rand -base64 48
 spring:
   datasource:
-    password: your-password
+    url: jdbc:mysql://192.168.216.130:3306/usercenter?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: usercenter
+    password: change-me
+  data:
+    redis:
+      host: 192.168.216.130
+      # 开发虚拟机的 6379 已被其他服务占用，本项目使用 6380
+      port: 6380
+      password: change-me
+
+security:
+  jwt:
+    secret: change-me-base64-at-least-32-bytes

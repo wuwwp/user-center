@@ -1,0 +1,13 @@
+server:
+  # 仅在可信反向代理（Nginx）之后启用，避免直接暴露时被伪造 X-Forwarded-For
+  forward-headers-strategy: framework
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  level:
+    root: info

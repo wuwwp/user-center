@@ -2,6 +2,11 @@ HELP.md
 target/
 src/main/resources/application-local.yaml
 docs/decisions.md
+.env
+logs/
+web/node_modules/
+web/dist/*
+!web/dist/.gitkeep
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/

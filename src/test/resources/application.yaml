@@ -1,0 +1,10 @@
+spring:
+  main:
+    banner-mode: off
+
+security:
+  jwt:
+    secret: dGVzdC1vbmx5LXNlY3JldC1tdXN0LWJlLTMyLWJ5dGVzLWxvbmc=
+    expiration: 2h
+  cors:
+    allowed-origins: http://localhost:5173

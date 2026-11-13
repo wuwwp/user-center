@@ -1,5 +1,69 @@
+server:
+  port: 8080
+  shutdown: graceful
+
 spring:
   application:
     name: user-center
   profiles:
     active: dev,local
+  autoconfigure:
+    # 使用自定义 JWT 鉴权链，不需要 Boot 生成的默认内存用户
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/usercenter?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:usercenter}
+    password: ${DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 3000
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3s
+  jackson:
+    time-zone: Asia/Shanghai
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    default-enum-type-handler: com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:}
+    expiration: 2h
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    root: info

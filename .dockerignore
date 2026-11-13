@@ -1,0 +1,8 @@
+.git
+.idea
+.vscode
+target
+web/node_modules
+web/dist
+docs/decisions.md
+.env
