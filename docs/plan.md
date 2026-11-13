@@ -5,9 +5,9 @@
 | 项目 | 内容 |
 |---|---|
 | 文档名称 | 用户中心（统一认证服务）设计文档 |
-| 文档版本 | v0.1 |
+| 文档版本 | v0.2 |
 | 文档状态 | 评审中 |
-| 编写日期 | 2026-11-12 |
+| 编写日期 | 2026-11-13 |
 | 适用范围 | user-center 服务的设计、开发、测试与部署 |
 | 密级 | 公开 |
 
@@ -16,6 +16,7 @@
 | 版本 | 日期 | 修订人 | 修订说明 |
 |---|---|---|---|
 | v0.1 | 2026-11-12 | — | 初稿：确认架构、认证方案、数据模型、接口与实施阶段 |
+| v0.2 | 2026-11-13 | — | 数据库升级 MySQL 8.4 LTS；补充 Redis 缓存一致性、验证码场景隔离、防枚举时间侧、IP 限流、弱密码校验、安全响应头、审计字段、密钥轮换；安全骨架前移至阶段 0 |
 
 ## 1. 引言
 
@@ -33,6 +34,7 @@
 | 恢复 | 已注销账号在验证身份后重新启用 |
 | 封禁 | 管理员对账号的禁用状态，与注销相互独立 |
 | 用户枚举 | 通过接口响应差异推断某邮箱/账号是否存在 |
+| 令牌版本 | 用户维度的整数，令牌签发时写入，用于整体吊销 |
 
 ## 2. 范围
 
@@ -41,7 +43,7 @@
 1. 为多个自有 Web 项目提供统一账号与登录能力
 2. 提供管理员对用户的管理能力（查询、封禁/解封、重置密码）
 3. 以独立单体服务交付，鉴权无状态，可平滑演进为 OAuth2/SSO 与微服务
-4. 工程实践完整：分层、统一返回、异常处理、参数校验、接口文档、自动化测试、容器化部署
+4. 工程实践完整：分层、统一返回、异常处理、参数校验、接口文档、自动化测试、容器化部署、健康检查
 
 ### 2.2 非目标
 
@@ -49,7 +51,8 @@
 - RBAC 细粒度权限、多租户、项目级权限
 - 短信验证码（保留 Provider 接口，不实现）
 - 头像上传、邮箱/手机号换绑
-- 审计日志、单端登出
+- 首次登录强制改密、审计日志、单端登出
+- 数据归档与物理清理
 - 微服务拆分、注册中心、网关
 
 ## 3. 总体设计
@@ -59,8 +62,8 @@
 ```
 Web 项目 A ──┐
 Web 项目 B ──┼──HTTPS──> Nginx ──> user-center（单体服务）
-小程序（后续）┘                        ├── MySQL 8.0（用户数据）
-                                      └── Redis 7.x（验证码、限流、令牌版本）
+小程序（后续）┘                        ├── MySQL 8.4 LTS（用户数据，事实来源）
+                                      └── Redis 7.x（验证码、限流、令牌版本与状态缓存）
 ```
 
 - 服务无状态，可水平扩展
@@ -74,42 +77,49 @@ Web 项目 B ──┼──HTTPS──> Nginx ──> user-center（单体服�
 | 运行时 | Java 21（LTS） | 启用虚拟线程 |
 | 框架 | Spring Boot 4.1.x / Spring MVC | 与现有工程基线一致 |
 | 安全 | Spring Security 7 + JWT（jjwt） | 标准鉴权链，便于后续接入 OAuth2 |
-| 持久层 | MyBatis-Plus 3.5.18 + MySQL 8.0 | 参数绑定，无字符串拼接 SQL |
-| 缓存 | Redis 7.2+ | 验证码、限流、失败计数、令牌版本 |
+| 持久层 | MyBatis-Plus 3.5.18 + MySQL 8.4 LTS | 参数绑定，无字符串拼接 SQL |
+| 缓存 | Redis 7.2+ | 验证码、限流、失败计数、令牌版本与账号状态缓存 |
 | 参数校验 | spring-boot-starter-validation | 注解校验 + 全局异常转换 |
-| 邮件 | spring-boot-starter-mail | SMTP 可配置，开发环境可关闭 |
+| 邮件 | spring-boot-starter-mail | SMTP 可配置，开发环境默认输出日志 |
 | 接口文档 | springdoc-openapi 3.2.0 | OpenAPI 3 + Swagger UI |
+| 可观测性 | Spring Boot Actuator | 健康检查与基础指标 |
 | 测试 | JUnit 5、Mockito、MockMvc、Testcontainers | 单元 + 接口 + 集成 |
 | 部署 | Docker / Docker Compose | 应用、MySQL、Redis 一键启动 |
 
-**虚拟线程说明**：`spring.threads.virtual.enabled=true`，由 Spring Boot 自动配置 Tomcat 与 `@Async` 执行器。本服务为 I/O 等待型（数据库、Redis、SMTP），虚拟线程可降低线程占用；数据库并发仍受连接池上限约束，虚拟线程不是扩容手段，仅减少线程调度开销。
+**数据库版本说明**：MySQL 8.0 的 Premier Support 已于 2026-04-30 结束，本项目新部署统一使用 8.4 LTS；本地历史 8.0 实例不用于验收。
+
+**虚拟线程说明**：`spring.threads.virtual.enabled=true`，由 Spring Boot 自动配置 Tomcat 与 `@Async` 执行器。
+
+- 一个请求从头到尾运行在同一个虚拟线程上，`ThreadLocal`（含 Spring Security 上下文、MDC）正常工作，**不要**配置 `MODE_INHERITABLETHREADLOCAL`
+- Java 21 下 `synchronized` 会钉住载体线程（JEP 491 在 Java 24 修复），应用热路径优先使用 `ReentrantLock`
+- 连接池大小仍按数据库承载能力配置，虚拟线程不改变数据库并发上限，不是扩容手段
 
 ## 4. 功能需求
 
 | 编号 | 功能 | 说明 | 优先级 |
 |---|---|---|---|
-| FR-01 | 邮箱注册 | 邮箱验证码校验，自动分配用户名，密码 BCrypt 存储 | 高 |
+| FR-01 | 邮箱注册 | 邮箱验证码校验，自动分配用户名，密码 BCrypt 存储，固定 `role=0` | 高 |
 | FR-02 | 登录 | 邮箱 + 密码，签发 JWT | 高 |
 | FR-03 | 登出 | 令牌版本自增，当前用户所有令牌失效 | 高 |
 | FR-04 | 当前用户 | 返回脱敏后的用户信息 | 高 |
 | FR-05 | 修改密码 | 校验旧密码，成功后所有令牌失效 | 高 |
 | FR-06 | 忘记密码 | 邮箱验证码重置密码 | 高 |
 | FR-07 | 注销 | 密码确认，逻辑删除，令牌失效，管理员不可自助注销 | 中 |
-| FR-08 | 恢复 | 原密码或邮箱验证码验证后恢复账号 | 中 |
+| FR-08 | 恢复 | 原密码或邮箱验证码验证后恢复账号，令牌版本自增 | 中 |
 | FR-09 | 管理员查询 | 按用户名/邮箱/手机号/状态分页查询 | 高 |
 | FR-10 | 管理员封禁/解封 | 封禁后旧令牌失效，登录被拒 | 高 |
-| FR-11 | 管理员重置密码 | 生成随机密码一次性返回，不记录日志 | 高 |
-| FR-12 | 验证码发送 | 限频发送，开发环境输出到日志 | 高 |
+| FR-11 | 管理员重置密码 | 生成随机密码一次性返回，不记录日志，令牌版本自增 | 高 |
+| FR-12 | 验证码发送 | 按场景隔离，限频发送，开发环境输出到日志 | 高 |
 
 ## 5. 非功能需求
 
 | 编号 | 类别 | 要求 |
 |---|---|---|
-| NFR-01 | 安全 | 全站 HTTPS；密码不可逆存储；令牌可吊销；防用户枚举；管理接口独立鉴权 |
-| NFR-02 | 性能 | 单实例常规接口 P95 < 200ms；分页接口单页上限 100 条 |
-| NFR-03 | 可用性 | 服务无状态，可多实例部署；MySQL/Redis 故障时返回明确错误，不泄露内部细节 |
+| NFR-01 | 安全 | 全站 HTTPS；密码不可逆存储；令牌可吊销；防用户枚举；管理接口独立鉴权；安全响应头 |
+| NFR-02 | 性能 | 单实例 100 并发下常规接口 P95 < 200ms；分页接口单页上限 100 条 |
+| NFR-03 | 可用性 | 服务无状态，可多实例部署；MySQL/Redis 故障时返回明确错误，不泄露内部细节；Redis 不可用时鉴权降级查库 |
 | NFR-04 | 可维护性 | 分层清晰；统一返回与错误码；配置与代码分离；敏感配置不进仓库 |
-| NFR-05 | 可观测性 | 结构化日志，敏感字段脱敏；关键操作记录用户 ID 与结果 |
+| NFR-05 | 可观测性 | 结构化日志，敏感字段脱敏；Actuator 健康检查；关键操作记录用户 ID 与结果 |
 | NFR-06 | 兼容性 | API 带版本前缀 `/api/v1`，破坏性变更升版本 |
 
 ## 6. 数据设计
@@ -118,23 +128,24 @@ Web 项目 B ──┼──HTTPS──> Nginx ──> user-center（单体服�
 
 ```sql
 create table `user` (
-    id            bigint unsigned auto_increment primary key,
-    user_account  varchar(32)  not null comment '对外标识，自动生成，不参与登录',
-    nickname      varchar(32)  null     comment '昵称',
-    email         varchar(128) not null comment '登录标识',
-    phone         varchar(20)  null     comment '预留，本期不参与登录',
-    password_hash varchar(100) not null comment 'BCrypt',
-    avatar_url    varchar(512) null,
-    gender        tinyint      null,
-    role          tinyint      not null default 0 comment '0-普通用户 1-管理员',
-    status        tinyint      not null default 0 comment '0-正常 1-封禁',
-    is_delete     tinyint      not null default 0 comment '0-未注销 1-已注销',
-    token_version int          not null default 0,
-    create_time   datetime     not null default current_timestamp,
-    update_time   datetime     not null default current_timestamp on update current_timestamp,
+    id                  bigint unsigned auto_increment primary key,
+    user_account        varchar(32)  not null comment '对外标识，自动生成，不参与登录',
+    nickname            varchar(32)  null     comment '昵称',
+    email               varchar(128) not null comment '登录标识',
+    phone               varchar(20)  null     comment '预留，本期不参与登录',
+    password_hash       varchar(100) not null comment 'BCrypt',
+    avatar_url          varchar(512) null,
+    gender              tinyint      null     comment '0-未知 1-男 2-女',
+    role                tinyint      not null default 0 comment '0-普通用户 1-管理员',
+    status              tinyint      not null default 0 comment '0-正常 1-封禁',
+    is_delete           tinyint      not null default 0 comment '0-未注销 1-已注销',
+    token_version       int          not null default 0,
+    last_login_time     datetime     null,
+    password_update_time datetime    null,
+    create_time         datetime     not null default current_timestamp,
+    update_time         datetime     not null default current_timestamp on update current_timestamp,
     unique key uk_email (email),
-    unique key uk_user_account (user_account),
-    unique key uk_phone (phone)
+    unique key uk_user_account (user_account)
 ) engine = innodb default charset = utf8mb4;
 ```
 
@@ -142,18 +153,29 @@ create table `user` (
 
 - `id` 为内部代理键，不对外暴露；对外使用 `user_account`
 - `email` 为登录标识，唯一；`user_account` 自动生成，唯一，作为展示与检索标识
+- `phone` 本期不参与登录，不加唯一索引；手机号功能上线时再添加并补齐唯一性校验
+- 枚举字段在代码层用枚举类绑定，禁止魔法值
 - 注销为逻辑删除，保留数据以支持恢复；唯一索引不释放标识，注销后同邮箱注册引导至恢复流程
-- `token_version` 与 JWT 中的 `ver` 比对，实现改密、封禁、注销、恢复后旧令牌立即失效
-- 角色变更同样自增 `token_version`，避免令牌中的旧角色继续生效
+- `token_version` 与 JWT 中的 `ver` 比对，实现改密、封禁、注销、恢复、管理员重置密码后旧令牌立即失效；角色变更同样自增
+- `last_login_time`、`password_update_time` 用于安全审计与异常检测
 
-### 6.3 数据生命周期
+### 6.3 令牌版本与账号状态的缓存
+
+- MySQL 为事实来源，Redis 缓存 `user:ver:{id}` 与 `user:status:{id}`，TTL 5 分钟
+- 读取顺序：Redis → 未命中查库并回填；Redis 不可用时降级查库（可用性优先，记录告警日志）
+- 变更顺序：数据库事务提交后删除对应缓存键，下一次请求回源，避免脏读窗口
+- 缓存键与用户 ID 绑定，不使用可预测的业务键
+
+### 6.4 数据生命周期
 
 | 阶段 | 状态 | 数据 |
 |---|---|---|
 | 注册 | `is_delete=0` | 全部保留 |
 | 注销 | `is_delete=1` | 保留，可恢复 |
 | 封禁 | `status=1` | 保留，不可登录，不可自助恢复 |
-| 恢复 | `is_delete=0` | 保留原数据与角色 |
+| 恢复 | `is_delete=0` | 保留原数据与角色；`token_version` 自增 |
+
+归档与物理清理不在本期范围，见演进路线。
 
 ## 7. 接口设计
 
@@ -171,13 +193,16 @@ create table `user` (
 |---|---|---|
 | 0 | 200 | 成功 |
 | 40000 | 400 | 参数校验失败 |
+| 40001 | 400 | 验证码错误 |
+| 40002 | 400 | 验证码已过期 |
 | 40100 | 401 | 未登录或令牌无效 |
 | 40101 | 401 | 邮箱或密码错误 |
 | 40102 | 401 | 登录失败次数过多，账号锁定 |
+| 40103 | 401 | 账号已封禁（仅在凭证验证通过后返回） |
+| 40104 | 401 | 账号已注销（仅在凭证验证通过后返回） |
 | 40300 | 403 | 无权限 |
 | 40400 | 404 | 资源不存在 |
 | 40900 | 409 | 资源冲突（邮箱已注册等） |
-| 40901 | 409 | 账号已注销，可申请恢复 |
 | 42900 | 429 | 请求过于频繁 |
 | 50000 | 500 | 系统错误 |
 
@@ -190,7 +215,7 @@ create table `user` (
 | post | `/api/v1/auth/register` | 邮箱验证码注册 | 否 |
 | post | `/api/v1/auth/login` | 邮箱 + 密码登录 | 否 |
 | post | `/api/v1/auth/logout` | 登出 | 是 |
-| post | `/api/v1/auth/email/code` | 发送注册/重置验证码 | 否 |
+| post | `/api/v1/auth/email/code` | 按场景发送验证码（register/reset/recover） | 否 |
 
 #### 用户
 
@@ -217,34 +242,42 @@ create table `user` (
 - 校验固定算法，拒绝 `none` 与算法替换
 - claims 仅包含 `sub`(用户 ID)、`role`、`ver`(令牌版本)、`jti`、`iat`、`exp`
 - 有效期 2 小时，不提供刷新令牌；过期后重新登录
-- 每个请求校验签名、有效期、`ver` 与当前账号状态（封禁/注销）
-- 作用域：令牌仅用于本服务；后续多服务独立验签时切换 RS256
+- 每个请求校验签名、有效期、`ver` 与当前账号状态（封禁/注销），缓存策略见 6.3
+- 预留密钥轮换：JWT 头携带 `kid`，配置支持多个密钥（一个签发、多个验签），轮换时新增密钥并切换签发 key，旧密钥保留至所有令牌过期
+- 作用域：令牌仅用于本服务；后续多服务独立验签时切换 RS256（认证服务持私钥签发，业务服务持公钥验签）
 
 ### 8.2 账号与密码
 
 - 密码 BCrypt（cost 10+），永不返回、不写日志
-- 密码策略：8~64 位，至少包含字母与数字
+- 密码策略：8~64 位，至少包含字母与数字；校验 Top 1000 弱密码字典
 - 注册、登录、发码响应统一文案，避免用户枚举
+- 登录流程对不存在的账号执行一次固定哈希的 BCrypt 比对，抹平计算路径差异；不依赖随机延时
 - 登录失败 5 次锁定 15 分钟；验证码同邮箱 60 秒限发、每日 10 次
+- 验证码按业务场景隔离：`verify:register:{email}`、`verify:reset:{email}`、`verify:recover:{email}`，校验时严格匹配场景，禁止跨场景复用
+- 登录失败、发码同时做账号维度与 IP 维度计数；客户端 IP 仅信任来自 Nginx 的 `X-Forwarded-For`，且只取可信代理追加的最后一跳
 
 ### 8.3 权限
 
 - 管理接口要求 `role=1`，按路径前缀统一配置
 - 用户资源操作校验归属，防越权（IDOR）
-- 角色变更自增 `token_version`，避免旧令牌保留管理员权限
+- 角色变更、封禁、注销、恢复、管理员重置密码均自增 `token_version`，避免旧令牌保留旧权限
+- 注册接口固定写入 `role=0`；管理员只能由初始化脚本或运维 SQL 产生
 
 ### 8.4 数据与传输
 
 - 接口返回 DTO，手机号仅管理员可见且掩码
 - SQL 全部参数绑定，禁止字符串拼接
-- 全站 HTTPS；CORS 白名单；安全响应头
+- 全站 HTTPS；CORS 白名单
+- 安全响应头：`Strict-Transport-Security`、`X-Frame-Options: DENY`、`X-Content-Type-Options: nosniff`、`Referrer-Policy: no-referrer`
 - 无 Cookie 认证，不依赖 CSRF Token
 - 敏感配置（数据库密码、JWT 密钥、SMTP 授权码）仅存本地/环境变量，已加入 `.gitignore`
 
-### 8.5 日志
+### 8.5 日志与可观测性
 
 - 记录登录结果、封禁、重置密码等事件，包含操作者 ID 与目标 ID
 - 不记录密码、令牌、验证码、邮箱完整地址（脱敏）
+- Actuator 仅暴露 `health`、`info`，其余端点关闭或鉴权
+- 指标与告警接入不在本期范围
 
 ## 9. 环境与部署
 
@@ -252,16 +285,16 @@ create table `user` (
 
 | 环境 | 用途 | 组件 |
 |---|---|---|
-| local | 本地开发 | 本机 MySQL 8.0、Redis 7.x |
-| test | 自动化测试 | Testcontainers（MySQL 8.0 + Redis 7.x） |
+| local | 本地开发 | 开发机 JDK 21；MySQL 8.4、Redis 7.x 运行于开发虚拟机 Docker |
+| test | 自动化测试 | Testcontainers（MySQL 8.4 + Redis 7.x） |
 | prod | 部署 | 云服务器 + Docker Compose |
 
 ### 9.2 部署拓扑
 
 ```
-Nginx（HTTPS、反向代理）
+Nginx（HTTPS、反向代理、可信 X-Forwarded-For）
   └── user-center（容器，Java 21）
-        ├── MySQL 8.0（容器，数据卷持久化）
+        ├── MySQL 8.4 LTS（容器，数据卷持久化）
         └── Redis 7.x（容器，AOF 持久化）
 ```
 
@@ -271,6 +304,7 @@ Nginx（HTTPS、反向代理）
 - `docker-compose.yml`：应用、MySQL、Redis 编排，配置通过环境变量注入
 - `.env.example`：完整配置项模板，不含真实凭据
 - 部署说明：初始化 SQL、启动步骤、健康检查
+- CI：构建、单元测试、集成测试（Testcontainers）
 
 ## 10. 测试策略
 
@@ -279,17 +313,29 @@ Nginx（HTTPS、反向代理）
 | 单元测试 | JUnit 5 + Mockito | 注册冲突、锁定、恢复条件、权限判断等业务规则 |
 | Web 层测试 | MockMvc | 参数校验、错误码、401/403 鉴权矩阵 |
 | 集成测试 | Spring Boot Test + Testcontainers | 真实 MySQL/Redis 下的注册、登录、改密、注销恢复全链路 |
+| 性能验收 | 压测工具 | 单实例 100 并发，常规接口 P95 < 200ms |
 | 接口验收 | Swagger / OpenAPI + 测试用例表 | 手工验收与回归 |
 
-要求：核心业务分支覆盖率不低于 70%；安全相关路径（越权、封禁、令牌失效）必须有测试。
+安全测试用例（必须覆盖）：
+
+1. 未认证访问受保护接口返回 401
+2. 普通用户访问管理接口返回 403
+3. 修改密码、封禁、注销、恢复后旧令牌失效
+4. 越权访问他人资源被拒绝
+5. 用户枚举：不存在账号与密码错误返回一致
+6. 验证码跨场景复用被拒绝
+7. 登录失败锁定与发码频率限制生效
+8. 登出后令牌失效
+
+核心业务分支覆盖率不低于 70%，安全用例要求 100% 覆盖。
 
 ## 11. 实施计划
 
 | 阶段 | 内容 | 交付物 | 验收标准 |
 |---|---|---|---|
-| 阶段 0 工程基础 | 依赖、配置分层、统一返回/异常/校验、表结构与初始化脚本、容器编排骨架 | 可启动工程、`init.sql` | 启动成功；未认证访问返回 401 |
+| 阶段 0 工程基础 | 依赖与配置分层；统一返回/异常/校验；Spring Security 基础配置与 JWT Filter 骨架；表结构与初始化脚本；Docker 编排骨架 | 可启动工程、`init.sql`、安全骨架 | 启动成功；未认证访问返回 401；种子管理员可登录 |
 | 阶段 1 账号核心 | 注册、登录、登出、当前用户、修改密码、邮箱验证码重置 | 认证接口与单元测试 | 注册→登录→改密→重置全流程通过 |
-| 阶段 2 鉴权与防护 | Spring Security 链、JWT Filter、角色校验、Redis 限流与锁定、令牌版本 | 安全配置与鉴权测试 | 401/403 矩阵、封禁与改密后令牌失效通过 |
+| 阶段 2 鉴权与防护 | 角色校验、令牌版本与状态缓存、场景化验证码、账号/IP 限流与锁定、弱密码校验、安全响应头 | 安全配置与鉴权测试 | 安全测试用例全部通过 |
 | 阶段 3 管理员 | 分页查询、封禁/解封、重置密码 | 管理接口与测试 | 管理员流程通过，普通用户不可访问 |
 | 阶段 4 注销与恢复 | 注销、恢复流程、状态校验 | 完整闭环与测试 | 注销→登录提示→恢复→旧令牌失效 |
 | 阶段 5 收尾 | OpenAPI 导出、README、Dockerfile/compose、CI、验收 | 可部署产物与文档 | 新环境一条命令启动，测试全绿 |
@@ -300,20 +346,23 @@ Nginx（HTTPS、反向代理）
 |---|---|---|
 | Spring Security 7 / Boot 4 资料少 | 开发阻塞 | 以官方文档为准，安全配置集中管理 |
 | 逻辑删除与唯一索引冲突 | 注销后无法注册新号 | 恢复流程覆盖，文档写明限制 |
-| 验证码被刷 | 邮件成本与骚扰 | Redis 限频、失败计数、每日上限 |
-| 虚拟线程被误认为扩容手段 | 架构误判 | 文档明确其定位，容量仍由连接池决定 |
+| 验证码被刷 | 邮件成本与骚扰 | 场景隔离、账号/IP 双维度限频、失败计数 |
+| Redis 与数据库版本缓存不一致 | 越权或误封 | 提交后删缓存、TTL 兜底、Redis 故障降级查库 |
+| 虚拟线程被误认为扩容手段 | 架构误判 | 文档明确其定位；热路径避免 `synchronized` |
 | 敏感配置泄露 | 安全事故 | 本地配置隔离、环境变量注入、示例文件不含真实值 |
 | 范围膨胀 | 交付延期 | 非目标清单锁定，新增需求进入演进路线 |
 
 ## 13. 演进路线
 
-| 方向 | 前置条件 | 方式 |
+| 方向 | 前置条件 | 方式与改造量 |
 |---|---|---|
-| OAuth2 / OIDC、真 SSO | 出现第三方接入或跨站免登需求 | 令牌签发逻辑不动，增加授权码端点 |
+| OAuth2 / OIDC、真 SSO | 出现第三方接入或跨站免登需求 | 令牌签发逻辑保留；新增授权码端点、授权页、客户端注册与同意页，改造量约一个中等模块 |
 | RBAC、项目级权限 | 角色超过两种或出现项目隔离需求 | 新增角色/权限/关联表，`isAdmin()` 改为权限校验 |
 | 短信验证码 | 具备短信服务与预算 | 新增 Provider 实现，业务代码不改 |
-| 微服务拆分 | 出现独立的调用边界或部署频率差异 | 用户/认证能力独立部署，网关统一鉴权 |
+| 首次登录强制改密 | 管理员重置密码成为高频操作 | 增加 `must_change_password` 状态位与登录后拦截 |
+| 数据归档与物理清理 | 合规要求或数据量增长 | 定时任务归档至冷表，释放唯一标识 |
 | 单端登出、审计日志 | 有合规或多端管理需求 | 引入 `jti` 黑名单、审计表 |
+| 微服务拆分 | 出现独立的调用边界或部署频率差异 | 用户/认证能力独立部署，网关统一鉴权 |
 
 ## 14. 参考
 
@@ -321,4 +370,5 @@ Nginx（HTTPS、反向代理）
 - Spring Security 7 Reference Documentation
 - MyBatis-Plus 3.5.x Documentation
 - springdoc-openapi 3.x Documentation：https://springdoc.org/
+- MySQL 8.4 Reference Manual
 - OWASP Application Security Verification Standard
