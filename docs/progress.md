@@ -20,17 +20,14 @@
 
 - 本机：Windows 11、JDK 21、Node 24、MySQL 8.0.46（旧版，不用于本项目）
 - 开发虚拟机：`ssh user-center-vm`（192.168.216.130，用户 wwp）
-  - Docker 已安装；MySQL 8.4 与 Redis 7 容器尚未创建
-  - **首次登录前需要把公钥复制到 VM**，命令见下方「下一步」
+  - SSH 免密登录已验证：`ssh user-center-vm "docker --version"` → Docker 29.9.2
+  - MySQL 8.4 与 Redis 7 容器尚未创建
 - 部署：云服务器（已有，规格待确认；建议 2 核 4G）
 - 数据库：项目统一使用 MySQL 8.4 LTS
 
 ## 下一步（按顺序）
 
-1. 复制 SSH 公钥到 VM（只需一次）：
-   `type "$USERPROFILE\.ssh\id_ed25519.pub" | ssh wwp@192.168.216.130 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"`
-2. 验证免密：`ssh user-center-vm "docker --version"`
-3. 阶段 0：重写工程骨架
+1. 阶段 0：重写工程骨架
    - 删除旧 `User`、`UserService`、`UserServiceImpl`、`UserMapper`、`UserMapper.xml` 与旧测试
    - 加入依赖：security、redis、validation、mail、jjwt、actuator、springdoc 3.2.0、spotless、checkstyle、testcontainers
    - 配置分层：`application.yaml` / `application-dev.yaml` / `application-local.yaml`
@@ -38,7 +35,7 @@
    - 建 Security + JWT Filter 骨架
    - `src/main/resources/db/init.sql`：建表 + 种子管理员
    - Docker Compose：MySQL 8.4、Redis 7、Nginx、应用
-4. 阶段 1：注册、登录、登出、当前用户、修改密码、邮箱验证码重置
+2. 阶段 1：注册、登录、登出、当前用户、修改密码、邮箱验证码重置
 
 ## 待确认 / 阻塞
 
