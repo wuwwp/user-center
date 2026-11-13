@@ -5,7 +5,7 @@
 | 项目 | 内容 |
 |---|---|
 | 文档名称 | 用户中心（统一认证服务）设计文档 |
-| 文档版本 | v0.3 |
+| 文档版本 | v0.4 |
 | 文档状态 | 评审中 |
 | 编写日期 | 2026-11-13 |
 | 适用范围 | user-center 服务与配套 Web 前端的设计、开发、测试与部署 |
@@ -18,6 +18,7 @@
 | v0.1 | 2026-11-12 | — | 初稿：确认架构、认证方案、数据模型、接口与实施阶段 |
 | v0.2 | 2026-11-13 | — | 数据库升级 MySQL 8.4 LTS；补充安全细节与阶段调整 |
 | v0.3 | 2026-11-13 | — | 去除过度设计：鉴权状态改查库、精简字段、移除密钥轮换实现与硬性性能门槛；增加 Web 前端、真实 SMTP、压测报告与 CI |
+| v0.4 | 2026-11-13 | — | 补充代码质量与规范：Spotless + Checkstyle、ESLint + Prettier + TypeScript、pre-commit 钩子、CI 强制检查、Conventional Commits |
 
 ## 1. 引言
 
@@ -91,6 +92,7 @@
 | 可观测性 | Spring Boot Actuator | 健康检查与基础指标 |
 | 测试 | JUnit 5、Mockito、MockMvc、Testcontainers | 单元 + 接口 + 集成 |
 | 压测 | k6 | 登录场景脚本与结果报告 |
+| 代码质量 | Spotless + Checkstyle（SpotBugs 可选）、ESLint + Prettier | 格式化与静态检查，CI 强制 |
 | CI | GitHub Actions | 编译、单元测试、集成测试 |
 | 部署 | Docker / Docker Compose + Nginx | 应用、数据库、缓存、静态前端 |
 
@@ -316,6 +318,7 @@ Nginx（HTTPS、静态前端、反向代理、可信 X-Forwarded-For）
 - `docker-compose.yml`：应用、MySQL、Redis、Nginx 编排，配置通过环境变量注入
 - `.env.example`：完整配置项模板，不含真实凭据
 - `web/`：Vue 3 前端源码与构建说明
+- `.editorconfig`、`checkstyle.xml`、`.githooks/pre-commit`
 - 部署说明：初始化 SQL、启动步骤、健康检查
 - `.github/workflows/ci.yml`：编译、单元测试、集成测试（Testcontainers）
 - `perf/login.js`、`docs/perf.md`：压测脚本与结果报告
@@ -384,6 +387,55 @@ Nginx（HTTPS、静态前端、反向代理、可信 X-Forwarded-For）
 | 数据归档与物理清理 | 合规要求或数据量增长 | 定时任务归档至冷表，释放唯一标识 |
 | 单端登出、审计日志 | 有合规或多端管理需求 | 引入 `jti` 黑名单、审计表 |
 | 微服务拆分 | 出现独立的调用边界或部署频率差异 | 用户/认证能力独立部署，网关统一鉴权 |
+
+## 附录 A：代码质量与规范
+
+### A.1 分层约定
+
+| 层次 | 约束 |
+|---|---|
+| controller | 只做参数校验、调用 service、组装返回；不写业务分支 |
+| service | 业务规则与事务边界；对外暴露接口，实现类不加事务以外的横切逻辑 |
+| mapper | 只做数据访问；不写业务判断 |
+| model / dto | 实体不直接返回前端；入参与出参分别用 Param / DTO |
+
+### A.2 编码约定
+
+- 命名：类 `UpperCamel`、方法/变量 `lowerCamel`、常量 `UPPER_SNAKE`、包全小写；布尔值用 `is/has/can` 前缀
+- 状态、角色、错误码使用枚举，禁止魔法值
+- 业务异常统一抛 `BusinessException`，由全局异常处理转换；不吞异常、不返回 null 表示失败
+- 入参使用 `@Valid` + 注解校验；事务放在 service 层
+- 日志使用 SLF4J 占位符；不记录密码、令牌、验证码、完整邮箱
+- SQL 关键字小写，参数绑定，禁止 `select *`，分页必须有上限
+- 注释只解释「为什么」，不复述「做了什么」；公开接口写清参数、返回与异常
+
+### A.3 工具与执行方式
+
+| 工具 | 作用 | 执行时机 |
+|---|---|---|
+| Spotless（google-java-format） | 格式化 Java 代码 | 本地 `mvnw spotless:apply`；提交前检查 |
+| Checkstyle（精简规则） | 命名、import、空行、Javadoc 等风格问题 | `mvnw checkstyle:check`；CI 强制 |
+| SpotBugs（可选） | 空指针、错误的 equals、资源泄漏等字节码问题 | `mvnw spotbugs:check` |
+| ESLint + Prettier | 前端代码检查与格式化 | `npm run lint` / `npm run format`；CI 强制 |
+| pre-commit 钩子 | 提交前检查格式，失败时提示修复命令 | `git commit` 前；可 `--no-verify` 跳过 |
+| GitHub Actions | 编译、单元测试、集成测试、静态检查 | 每次 push / pull request |
+
+规则来源参考《阿里巴巴 Java 开发手册》与 Google Java Style；团队无需全量照搬，原则是「机器能查的交给机器，人只讨论机器判断不了的部分」。
+
+### A.4 提交约定
+
+采用 Conventional Commits：
+
+| 前缀 | 用途 |
+|---|---|
+| `feat:` | 新功能 |
+| `fix:` | 修复缺陷 |
+| `docs:` | 文档 |
+| `refactor:` | 不改变行为的重构 |
+| `test:` | 测试 |
+| `chore:` | 构建、依赖、工具 |
+
+---
 
 ## 14. 参考
 
