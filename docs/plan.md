@@ -5,7 +5,7 @@
 | 项目 | 内容 |
 |---|---|
 | 文档名称 | 用户中心（统一认证服务）设计文档 |
-| 文档版本 | v0.6 |
+| 文档版本 | v0.7 |
 | 文档状态 | 评审中 |
 | 编写日期 | 2026-11-13 |
 | 适用范围 | user-center 服务与配套 Web 前端的设计、开发、测试与部署 |
@@ -21,6 +21,7 @@
 | v0.4 | 2026-11-13 | — | 补充代码质量与规范：Spotless + Checkstyle、ESLint + Prettier + TypeScript、pre-commit 钩子、CI 强制检查、Conventional Commits |
 | v0.5 | 2026-11-15 | — | JWT 去掉 role claim，角色以数据库为准；明确单体内聚、业务权限下沉、introspection 延后到接入阶段 |
 | v0.6 | 2026-11-15 | — | 阶段 1 登录事务边界：BCrypt 校验放在事务外，短事务只包 `last_login_time` 更新 |
+| v0.7 | 2026-11-15 | — | 阶段 1 实现补充：新增验证码重置密码接口；明确验证码位数/有效期/限发与场景枚举；明确 `user_account` 生成规则 |
 
 ## 1. 引言
 
@@ -171,6 +172,7 @@ create table `user` (
 
 - `id` 为内部代理键，不对外暴露；对外使用 `user_account`
 - `email` 为登录标识，唯一；`user_account` 自动生成，唯一，作为展示与检索标识
+  - 生成规则：`u` + 8 位小写字母数字随机串（如 `u3f7a9c2d`），不参与登录；依赖唯一索引兜底，冲突时重新生成
 - 枚举字段在代码层用枚举类绑定，禁止魔法值
 - 注销为逻辑删除，保留数据以支持恢复；唯一索引不释放标识，注销后同邮箱注册引导至恢复流程
 - `token_version` 与 JWT 中的 `ver` 比对，实现改密、封禁、注销、恢复、管理员重置密码后旧令牌立即失效；角色变更同样自增
@@ -232,6 +234,7 @@ create table `user` (
 | post | `/api/v1/auth/login` | 邮箱 + 密码登录 | 否 |
 | post | `/api/v1/auth/logout` | 登出 | 是 |
 | post | `/api/v1/auth/email/code` | 按场景发送验证码（register/reset/recover） | 否 |
+| post | `/api/v1/auth/password/reset` | 邮箱验证码重置密码（忘记密码） | 否 |
 
 #### 用户
 
@@ -269,7 +272,10 @@ create table `user` (
 - 登录流程对不存在的账号执行一次固定哈希的 BCrypt 比对，抹平计算路径差异；不依赖随机延时
 - 事务边界：密码校验（BCrypt）在事务外执行，事务只包住 `last_login_time` 更新等短写入，避免哈希计算占用数据库连接
 - 登录失败 5 次锁定 15 分钟；验证码同邮箱 60 秒限发、每日 10 次
+- 验证码：6 位数字，有效期 5 分钟，一次性使用（校验通过即删除）
 - 验证码按业务场景隔离：`verify:register:{email}`、`verify:reset:{email}`、`verify:recover:{email}`，校验时严格匹配场景，禁止跨场景复用
+- 发码限频：同邮箱 60 秒一次（`verify:cooldown:{email}`），每日 10 次（`verify:daily:{email}:{date}`）
+- 发码接口统一返回成功，不暴露邮箱是否注册；未注册邮箱不实际写码，后续校验自然失败
 - 登录失败、发码同时做账号维度与 IP 维度计数；客户端 IP 仅信任来自 Nginx 的 `X-Forwarded-For`，且只取可信代理追加的最后一跳
 
 ### 8.3 权限
