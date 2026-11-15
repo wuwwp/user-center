@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.wwp.usercenter.model.entity.User;
-import com.wwp.usercenter.model.enums.UserRole;
 import io.jsonwebtoken.JwtException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -24,13 +23,11 @@ class JwtTokenProviderTest {
   void should_round_trip_claims() {
     User user = new User();
     user.setId(42L);
-    user.setRole(UserRole.ADMIN);
     user.setTokenVersion(3);
 
     TokenPayload payload = provider.parse(provider.createToken(user));
 
     assertThat(payload.userId()).isEqualTo(42L);
-    assertThat(payload.role()).isEqualTo(UserRole.ADMIN.getCode());
     assertThat(payload.tokenVersion()).isEqualTo(3);
   }
 
@@ -38,7 +35,6 @@ class JwtTokenProviderTest {
   void should_reject_tampered_token() {
     User user = new User();
     user.setId(1L);
-    user.setRole(UserRole.USER);
     user.setTokenVersion(0);
 
     String token = provider.createToken(user) + "x";
@@ -52,12 +48,24 @@ class JwtTokenProviderTest {
         new JwtTokenProvider(new JwtProperties(SECRET, Duration.ofSeconds(-1)));
     User user = new User();
     user.setId(1L);
-    user.setRole(UserRole.USER);
     user.setTokenVersion(0);
 
     String token = expiredProvider.createToken(user);
 
     assertThatThrownBy(() -> provider.parse(token)).isInstanceOf(JwtException.class);
+  }
+
+  @Test
+  void should_not_include_role_claim() {
+    User user = new User();
+    user.setId(1L);
+    user.setTokenVersion(0);
+
+    String token = provider.createToken(user);
+    String payload =
+        new String(Base64.getUrlDecoder().decode(token.split("\\.")[1]), StandardCharsets.UTF_8);
+
+    assertThat(payload).doesNotContain("\"role\"");
   }
 
   @Test

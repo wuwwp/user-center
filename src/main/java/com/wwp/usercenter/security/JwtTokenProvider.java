@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 import javax.crypto.SecretKey;
+import lombok.Getter;
 import org.springframework.stereotype.Component;
 
 /** 签发与解析 HS256 JWT。算法固定为 HS256，解析时拒绝其他算法与非法签名。 */
@@ -19,7 +20,7 @@ public class JwtTokenProvider {
   private static final String ISSUER = "user-center";
 
   private final SecretKey key;
-  private final Duration expiration;
+  @Getter private final Duration expiration;
 
   public JwtTokenProvider(JwtProperties properties) {
     byte[] secret;
@@ -40,7 +41,6 @@ public class JwtTokenProvider {
     return Jwts.builder()
         .issuer(ISSUER)
         .subject(String.valueOf(user.getId()))
-        .claim("role", user.getRole().getCode())
         .claim("ver", user.getTokenVersion())
         .id(UUID.randomUUID().toString())
         .issuedAt(Date.from(now))
@@ -58,11 +58,7 @@ public class JwtTokenProvider {
             .parseSignedClaims(token)
             .getPayload();
     long userId = Long.parseLong(claims.getSubject());
-    return new TokenPayload(userId, intClaim(claims, "role"), intClaim(claims, "ver"));
-  }
-
-  public Duration getExpiration() {
-    return expiration;
+    return new TokenPayload(userId, intClaim(claims, "ver"));
   }
 
   private static int intClaim(Claims claims, String name) {

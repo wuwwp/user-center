@@ -49,7 +49,7 @@ class SecurityConfigTest {
 
   @Test
   void should_return_current_user_when_token_valid() throws Exception {
-    given(jwtTokenProvider.parse("valid-token")).willReturn(new TokenPayload(7L, 1, 0));
+    given(jwtTokenProvider.parse("valid-token")).willReturn(new TokenPayload(7L, 0));
     given(userMapper.selectById(7L)).willReturn(user(7L, UserRole.ADMIN));
     given(userService.getCurrentUser(7L))
         .willReturn(
@@ -64,7 +64,7 @@ class SecurityConfigTest {
 
   @Test
   void should_return_403_when_user_accesses_admin_api() throws Exception {
-    given(jwtTokenProvider.parse("user-token")).willReturn(new TokenPayload(8L, 0, 0));
+    given(jwtTokenProvider.parse("user-token")).willReturn(new TokenPayload(8L, 0));
     given(userMapper.selectById(8L)).willReturn(user(8L, UserRole.USER));
 
     mockMvc

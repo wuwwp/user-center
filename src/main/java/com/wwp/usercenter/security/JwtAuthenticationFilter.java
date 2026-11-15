@@ -21,7 +21,7 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * 解析 Bearer 令牌并加载用户行，校验 token_version、状态与角色。令牌无效时不设置认证信息，交由入口点返回 401。
+ * 解析 Bearer 令牌并加载用户行，校验 token_version 与状态；权限由数据库角色生成。令牌无效时不设置认证信息，交由入口点返回 401。
  *
  * <p>该过滤器不注册为 Spring Bean，避免被 Servlet 容器再注册一次导致重复执行。
  */
@@ -71,7 +71,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     return user != null
         && user.getIsDelete() == DeletedFlag.NOT_DELETED
         && user.getStatus() == UserStatus.NORMAL
-        && user.getTokenVersion() == payload.tokenVersion()
-        && user.getRole().getCode() == payload.role();
+        && user.getTokenVersion() == payload.tokenVersion();
   }
 }
