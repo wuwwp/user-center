@@ -53,6 +53,8 @@ public class SecurityConfig {
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(authorize ->
             authorize
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout")
+                .authenticated()
                 .requestMatchers("/api/v1/auth/**")
                 .permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/users/me/recover")

@@ -42,6 +42,11 @@ mybatis-plus:
     db-config:
       id-type: auto
 
+user-center:
+  mail:
+    # 开发期把验证码输出到日志；接入 SMTP 前置为 false，避免验证码落日志
+    log-code: ${MAIL_LOG_CODE:true}
+
 security:
   jwt:
     secret: ${JWT_SECRET:}

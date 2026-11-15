@@ -2,8 +2,10 @@ package com.wwp.usercenter.security;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -82,6 +84,61 @@ class SecurityConfigTest {
                 .content("{\"email\":\"not-an-email\",\"password\":\"short\"}"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value(40000));
+  }
+
+  @Test
+  void should_return_401_when_logout_without_token() throws Exception {
+    mockMvc
+        .perform(post("/api/v1/auth/logout"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value(40100));
+  }
+
+  @Test
+  void should_logout_when_authenticated() throws Exception {
+    given(jwtTokenProvider.parse("valid-token")).willReturn(new TokenPayload(7L, 0));
+    given(userMapper.selectById(7L)).willReturn(user(7L, UserRole.USER));
+
+    mockMvc
+        .perform(post("/api/v1/auth/logout").header("Authorization", "Bearer valid-token"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value(0));
+
+    then(authService).should().logout(7L);
+  }
+
+  @Test
+  void should_return_400_when_register_password_weak() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"email\":\"alice@example.com\",\"code\":\"123456\",\"password\":\"onlyletters\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value(40000));
+  }
+
+  @Test
+  void should_return_400_when_email_scene_unknown() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/auth/email/code")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"alice@example.com\",\"scene\":\"unknown\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value(40000));
+  }
+
+  @Test
+  void should_return_401_when_change_password_without_token() throws Exception {
+    mockMvc
+        .perform(
+            put("/api/v1/users/me/password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"oldPassword\":\"OldPassw0rd\",\"newPassword\":\"NewPassw0rd\"}"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value(40100));
   }
 
   @Test

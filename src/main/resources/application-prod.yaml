@@ -11,3 +11,8 @@ springdoc:
 logging:
   level:
     root: info
+
+user-center:
+  mail:
+    # 生产环境禁止把验证码写入日志；接入 SMTP 前验证码无法投递，属已知阻塞项
+    log-code: false
