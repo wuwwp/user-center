@@ -1,8 +1,8 @@
 # 项目进度
 
 更新日期：2026-11-16
-设计文档版本：v0.13
-当前阶段：阶段 1 完成（账号核心）；下一步阶段 2
+设计文档版本：v0.14
+当前阶段：阶段 1 完成（含 Testcontainers 集成测试与覆盖率门槛）；下一步阶段 2
 
 ## 项目定位（护栏）
 
@@ -25,10 +25,13 @@
   - 登录：BCrypt 校验在事务外，`UserCredentialService.recordLogin` 短事务只更新 `last_login_time`
   - 登出、改密、验证码重置均自增 `token_version`，旧令牌立即 401
   - 邮件：`user-center.mail.mode=log|smtp` 双实现；log 模式写日志（邮箱掩码），smtp 模式真实发信；邮件失败只记 error、不改变响应
+  - 封禁账号：重置场景不发码，重置接口在验证码通过后返回 40103；需管理员解封后才能自助重置
+  - 测试：Testcontainers 集成测试覆盖注册→登录→改密→重置→登出→封禁拒绝重置；JaCoCo 行/分支覆盖率 70% 门槛
   - 时区：每日限发按 `user-center.time-zone`（默认 `Asia/Shanghai`）计算，`Clock` 注入；容器 `TZ` 固定，避免 UTC 容器在 08:00 跨日
   - SQL 分层：简单 CRUD 保留 Wrapper；`token_version` 原子自增用 `UserMapper.xml` 自定义 SQL，service 不再使用 `setSql`
-- 测试：46 个用例通过（JWT 5、Web/安全 10、Auth 16、User 5、验证码 8、SMTP 2）
-- 计划 v0.13：重置接口、验证码规则、时区、SQL 分层、SMTP 双实现、枚举取舍；演进路线记录 passwordless 候选
+- 测试：49 个用例（JWT 5、Web/安全 10、Auth 18、User 5、验证码 8、SMTP 2、集成 1）；本机无 Docker 时集成测试跳过
+- 覆盖率：JaCoCo 行 83.6%、分支 70.7%，`verify` 强制行/分支均不低于 70%
+- 计划 v0.14：重置接口、验证码规则、时区、SQL 分层、SMTP 双实现、枚举取舍、封禁重置策略、集成测试与覆盖率门槛
 
 ## 环境
 
@@ -43,7 +46,7 @@
 
 ## 验收结果（阶段 1）
 
-- `./mvnw verify`：46 个测试、Spotless、Checkstyle 全部通过
+- `./mvnw verify`：49 个测试（含 1 个 Testcontainers 集成测试）、Spotless、Checkstyle、JaCoCo 覆盖率检查全部通过
 - 注册：发码 → 注册 200 + `userAccount`；重复注册 40900；弱密码 40000
 - 登录：200 + JWT；改密后旧令牌 `/users/me` → 401，新密码可登录；错误旧密码 40101
 - 重置：错误验证码 40001；正确验证码重置成功；重置后旧令牌失效
@@ -59,7 +62,6 @@
 2. 弱密码 Top 1000 字典校验；验证码失败次数限制
 3. 客户端 IP 只信任 Nginx 追加的 `X-Forwarded-For` 最后一跳
 4. 安全用例补齐：令牌失效矩阵、越权、用户枚举响应一致性
-5. 阶段 1 补 Testcontainers 集成测试（本机无 Docker，在 VM 或 CI 执行）
 
 ## 交接
 
@@ -71,6 +73,6 @@
 
 ## 待确认 / 阻塞
 
-- SMTP 通用实现已接好；授权码与发件地址未提供，填入 `MAIL_*` 环境变量后即可真实投递，未配置前不要切到 `smtp` 模式上线
+- SMTP 已接通并实测发信（开发用 QQ 邮箱）；正式上线建议换企业邮件服务，并配置 SPF/DKIM/DMARC、关注配额与发件人一致性
 - 云服务器规格未定，部署阶段前确认
 - 应用镜像与 Nginx/前端静态资源尚未联调（阶段 5/6）
