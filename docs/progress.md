@@ -1,7 +1,7 @@
 # 项目进度
 
 更新日期：2026-11-16
-设计文档版本：v0.11
+设计文档版本：v0.13
 当前阶段：阶段 1 完成（账号核心）；下一步阶段 2
 
 ## 项目定位（护栏）
@@ -24,11 +24,11 @@
   - 发码接口统一返回成功；仅向该场景真正需要的账号投递，避免用户枚举
   - 登录：BCrypt 校验在事务外，`UserCredentialService.recordLogin` 短事务只更新 `last_login_time`
   - 登出、改密、验证码重置均自增 `token_version`，旧令牌立即 401
-  - 未接 SMTP：`LoggingEmailSender` 把验证码写入日志（邮箱掩码）；生产 `log-code=false`，验证码无法投递（已知阻塞）
+  - 邮件：`user-center.mail.mode=log|smtp` 双实现；log 模式写日志（邮箱掩码），smtp 模式真实发信；邮件失败只记 error、不改变响应
   - 时区：每日限发按 `user-center.time-zone`（默认 `Asia/Shanghai`）计算，`Clock` 注入；容器 `TZ` 固定，避免 UTC 容器在 08:00 跨日
   - SQL 分层：简单 CRUD 保留 Wrapper；`token_version` 原子自增用 `UserMapper.xml` 自定义 SQL，service 不再使用 `setSql`
-- 测试：43 个用例通过（JWT 5、Web/安全 10、Auth 15、User 5、验证码 8）
-- 计划 v0.11：重置接口、验证码规则、时区治理、SQL 分层；演进路线记录 passwordless 候选
+- 测试：46 个用例通过（JWT 5、Web/安全 10、Auth 16、User 5、验证码 8、SMTP 2）
+- 计划 v0.13：重置接口、验证码规则、时区、SQL 分层、SMTP 双实现、枚举取舍；演进路线记录 passwordless 候选
 
 ## 环境
 
@@ -43,7 +43,7 @@
 
 ## 验收结果（阶段 1）
 
-- `./mvnw verify`：43 个测试、Spotless、Checkstyle 全部通过
+- `./mvnw verify`：46 个测试、Spotless、Checkstyle 全部通过
 - 注册：发码 → 注册 200 + `userAccount`；重复注册 40900；弱密码 40000
 - 登录：200 + JWT；改密后旧令牌 `/users/me` → 401，新密码可登录；错误旧密码 40101
 - 重置：错误验证码 40001；正确验证码重置成功；重置后旧令牌失效
@@ -71,6 +71,6 @@
 
 ## 待确认 / 阻塞
 
-- SMTP 授权码未提供，验证码仅日志输出；生产 `log-code=false` 时无法投递，接入 SMTP 前不可上线
+- SMTP 通用实现已接好；授权码与发件地址未提供，填入 `MAIL_*` 环境变量后即可真实投递，未配置前不要切到 `smtp` 模式上线
 - 云服务器规格未定，部署阶段前确认
 - 应用镜像与 Nginx/前端静态资源尚未联调（阶段 5/6）
