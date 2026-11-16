@@ -27,6 +27,8 @@
 | mapper | 单表/多表数据访问 | 写业务判断、抛业务异常 |
 | security | 令牌解析、认证与授权判断 | 访问业务表以外的数据 |
 
+- 账号状态判断统一使用 `User.isDeleted()` / `isBanned()` / `isActive()`，不要在 service/security 里重复比较枚举组合
+
 ## 3. 数据对象
 
 - `entity`：与数据库表一一对应，只在 mapper/service 内部使用
@@ -46,6 +48,7 @@
 
 - controller 入参使用 `@Valid` / `@Validated`
 - 基础规则用注解（`@NotBlank`、`@Email`、`@Size`、`@Pattern`）
+- 重复出现的邮箱、验证码、强密码规则使用 `common/validation` 下的组合注解（`@ValidEmail`、`@EmailCode`、`@StrongPassword`），长度/正则从 `common/constant` 派生
 - 跨字段规则放 service，并使用 `BusinessException` 给出明确错误码
 - 分页参数必须有上限（`size <= 100`），默认值明确
 
@@ -61,7 +64,7 @@
 - 使用 SLF4J：`log.info("user login, userId={}", userId)`
 - 禁止字符串拼接日志
 - 禁止记录密码、令牌、验证码、完整邮箱、手机号；验证码仅在开发 `log` 模式输出到本地日志，生产 `smtp` 模式禁止
-- 邮件发送失败记录 `error` 日志与堆栈，但不得改变对外响应（避免可投递性差异变成用户枚举信号）
+- 邮件发送失败由通道实现抛 `EmailDeliveryException`；认证流程记录 `error` 日志与堆栈，但不得改变对外响应（避免可投递性差异变成用户枚举信号）
 - 异常日志记录堆栈，业务日志记录关键标识（用户 ID、操作类型、结果）
 - 级别：`error` 需要人处理；`warn` 异常但可恢复；`info` 关键业务节点；`debug` 排查细节
 
@@ -75,6 +78,7 @@
 - 参数一律用 `#{}`；`${}` 仅允许用于表名、列名等无法参数化的白名单场景，且值必须来自代码常量，不得来自用户输入
 - 需要数据库原子更新时（如 `token_version = token_version + 1`）直接写一条 update，禁止先查后改，避免并发丢更新
 - 禁止 `select *`，明确列名
+- 高频只读查询只取必要列；认证态投影写在 Mapper XML，避免每次请求加载密码哈希
 - 分页查询必须有上限；深分页场景再考虑游标
 - 唯一索引、联合索引按查询条件设计；索引变更需写明理由
 - 表名、列名遇到保留字（如 `user`）使用反引号

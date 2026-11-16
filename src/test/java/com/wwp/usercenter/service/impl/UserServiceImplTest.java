@@ -38,7 +38,6 @@ class UserServiceImplTest {
   void should_update_password_when_old_password_matches() {
     given(userMapper.selectById(9L)).willReturn(activeUser());
     given(passwordEncoder.matches(OLD_PASSWORD, OLD_HASH)).willReturn(true);
-    given(passwordEncoder.matches(NEW_PASSWORD, OLD_HASH)).willReturn(false);
     given(passwordEncoder.encode(NEW_PASSWORD)).willReturn(NEW_HASH);
 
     userService.changePassword(9L, new ChangePasswordParam(OLD_PASSWORD, NEW_PASSWORD));
@@ -63,10 +62,9 @@ class UserServiceImplTest {
   void should_reject_when_new_password_same_as_old() {
     given(userMapper.selectById(9L)).willReturn(activeUser());
     given(passwordEncoder.matches(OLD_PASSWORD, OLD_HASH)).willReturn(true);
-    given(passwordEncoder.matches(NEW_PASSWORD, OLD_HASH)).willReturn(true);
 
     assertThatThrownBy(() ->
-            userService.changePassword(9L, new ChangePasswordParam(OLD_PASSWORD, NEW_PASSWORD)))
+            userService.changePassword(9L, new ChangePasswordParam(OLD_PASSWORD, OLD_PASSWORD)))
         .isInstanceOf(BusinessException.class)
         .extracting("errorCode")
         .isEqualTo(ErrorCode.PARAM_INVALID);

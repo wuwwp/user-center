@@ -17,6 +17,7 @@ import com.wwp.usercenter.model.param.ResetPasswordParam;
 import com.wwp.usercenter.model.param.SendEmailCodeParam;
 import com.wwp.usercenter.security.JwtTokenProvider;
 import com.wwp.usercenter.service.AuthService;
+import com.wwp.usercenter.service.EmailDeliveryException;
 import com.wwp.usercenter.service.EmailSender;
 import com.wwp.usercenter.service.UserCredentialService;
 import com.wwp.usercenter.service.VerificationCodeService;
@@ -25,7 +26,6 @@ import com.wwp.usercenter.util.UserAccountUtils;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.mail.MailException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -67,7 +67,8 @@ public class AuthServiceImpl implements AuthService {
 
   @Override
   public LoginResult login(LoginParam param) {
-    User user = findByEmail(param.email());
+    String email = EmailUtils.normalize(param.email());
+    User user = findByNormalizedEmail(email);
     if (user == null) {
       passwordEncoder.matches(param.password(), dummyPasswordHash);
       throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
@@ -76,25 +77,21 @@ public class AuthServiceImpl implements AuthService {
       log.warn("login failed, userId={}", user.getId());
       throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
     }
-    if (user.getIsDelete() == DeletedFlag.DELETED) {
-      throw new BusinessException(ErrorCode.ACCOUNT_DELETED);
-    }
-    if (user.getStatus() == UserStatus.BANNED) {
-      throw new BusinessException(ErrorCode.ACCOUNT_BANNED);
-    }
+    ensureAccountUsable(user);
 
     userCredentialService.recordLogin(user.getId());
     String token = jwtTokenProvider.createToken(user);
     log.info("user login, userId={}", user.getId());
-    return new LoginResult(token, "Bearer", jwtTokenProvider.getExpiration().toSeconds());
+    return new LoginResult(
+        token, JwtTokenProvider.TOKEN_TYPE, jwtTokenProvider.getExpiration().toSeconds());
   }
 
   @Override
   public RegisterResult register(RegisterParam param) {
     String email = EmailUtils.normalize(param.email());
-    User existing = findByEmail(email);
+    User existing = findByNormalizedEmail(email);
     if (existing != null) {
-      if (existing.getIsDelete() == DeletedFlag.DELETED) {
+      if (existing.isDeleted()) {
         throw new BusinessException(ErrorCode.CONFLICT, "该邮箱已注销，请使用账号恢复流程");
       }
       throw new BusinessException(ErrorCode.CONFLICT, "邮箱已注册");
@@ -123,12 +120,12 @@ public class AuthServiceImpl implements AuthService {
   @Override
   public void sendEmailCode(SendEmailCodeParam param) {
     String email = EmailUtils.normalize(param.email());
-    User user = findByEmail(email);
+    User user = findByNormalizedEmail(email);
     String code = verificationCodeService.issue(email, param.scene());
     if (shouldDeliver(user, param.scene())) {
       try {
         emailSender.sendVerificationCode(email, param.scene(), code);
-      } catch (MailException exception) {
+      } catch (EmailDeliveryException exception) {
         // 邮件故障不能改变对外响应，否则“可投递/不可投递”的差异会变成用户枚举信号
         log.error(
             "send verification code failed, scene={}, email={}",
@@ -153,35 +150,37 @@ public class AuthServiceImpl implements AuthService {
   public void resetPassword(ResetPasswordParam param) {
     String email = EmailUtils.normalize(param.email());
     verificationCodeService.verifyAndConsume(email, EmailScene.RESET, param.code());
-    User user = findByEmail(email);
+    User user = findByNormalizedEmail(email);
     if (user == null) {
       throw new BusinessException(ErrorCode.VERIFY_CODE_INVALID);
     }
-    if (user.getIsDelete() == DeletedFlag.DELETED) {
-      throw new BusinessException(ErrorCode.ACCOUNT_DELETED);
-    }
-    if (user.getStatus() == UserStatus.BANNED) {
-      throw new BusinessException(ErrorCode.ACCOUNT_BANNED);
-    }
+    ensureAccountUsable(user);
 
     userCredentialService.updatePassword(user.getId(), passwordEncoder.encode(param.newPassword()));
     log.info("password reset by email code, userId={}", user.getId());
   }
 
-  private User findByEmail(String email) {
-    return userMapper.selectOne(
-        Wrappers.<User>lambdaQuery().eq(User::getEmail, EmailUtils.normalize(email)));
+  /** 入参邮箱必须先经过 {@link EmailUtils#normalize(String)}，避免同一邮箱因大小写产生不同记录。 */
+  private User findByNormalizedEmail(String email) {
+    return userMapper.selectOne(Wrappers.<User>lambdaQuery().eq(User::getEmail, email));
+  }
+
+  /** 登录与重置共用的账号可用性规则；已注销优先于封禁，错误码保持稳定。 */
+  private static void ensureAccountUsable(User user) {
+    if (user.isDeleted()) {
+      throw new BusinessException(ErrorCode.ACCOUNT_DELETED);
+    }
+    if (user.isBanned()) {
+      throw new BusinessException(ErrorCode.ACCOUNT_BANNED);
+    }
   }
 
   /** 只向确实需要该场景验证码的账号投递，响应文案保持一致。 */
   private static boolean shouldDeliver(User user, EmailScene scene) {
     return switch (scene) {
       case REGISTER -> user == null;
-      case RESET ->
-          user != null
-              && user.getIsDelete() == DeletedFlag.NOT_DELETED
-              && user.getStatus() == UserStatus.NORMAL;
-      case RECOVER -> user != null && user.getIsDelete() == DeletedFlag.DELETED;
+      case RESET -> user != null && user.isActive();
+      case RECOVER -> user != null && user.isDeleted();
     };
   }
 }

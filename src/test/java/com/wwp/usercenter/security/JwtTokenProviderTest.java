@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.wwp.usercenter.model.entity.User;
 import io.jsonwebtoken.JwtException;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Base64;
 import org.junit.jupiter.api.Test;
@@ -15,9 +16,10 @@ class JwtTokenProviderTest {
   private static final String SECRET =
       Base64.getEncoder()
           .encodeToString("test-only-secret-must-be-32-bytes".getBytes(StandardCharsets.UTF_8));
+  private static final Clock CLOCK = Clock.systemUTC();
 
   private final JwtTokenProvider provider =
-      new JwtTokenProvider(new JwtProperties(SECRET, Duration.ofHours(2)));
+      new JwtTokenProvider(new JwtProperties(SECRET, Duration.ofHours(2)), CLOCK);
 
   @Test
   void should_round_trip_claims() {
@@ -45,7 +47,7 @@ class JwtTokenProviderTest {
   @Test
   void should_reject_expired_token() {
     JwtTokenProvider expiredProvider =
-        new JwtTokenProvider(new JwtProperties(SECRET, Duration.ofSeconds(-1)));
+        new JwtTokenProvider(new JwtProperties(SECRET, Duration.ofSeconds(-1)), CLOCK);
     User user = new User();
     user.setId(1L);
     user.setTokenVersion(0);
@@ -73,7 +75,7 @@ class JwtTokenProviderTest {
     String shortSecret = Base64.getEncoder().encodeToString(new byte[16]);
 
     assertThatThrownBy(
-            () -> new JwtTokenProvider(new JwtProperties(shortSecret, Duration.ofHours(2))))
+            () -> new JwtTokenProvider(new JwtProperties(shortSecret, Duration.ofHours(2)), CLOCK))
         .isInstanceOf(IllegalStateException.class);
   }
 }

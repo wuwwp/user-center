@@ -1,5 +1,7 @@
 package com.wwp.usercenter.service.impl;
 
+import static com.wwp.usercenter.common.constant.VerificationCodeConstants.CODE_BOUND;
+import static com.wwp.usercenter.common.constant.VerificationCodeConstants.CODE_FORMAT;
 import static com.wwp.usercenter.common.constant.VerificationCodeConstants.CODE_TTL;
 import static com.wwp.usercenter.common.constant.VerificationCodeConstants.COOLDOWN;
 import static com.wwp.usercenter.common.constant.VerificationCodeConstants.DAILY_COUNTER_TTL;
@@ -28,7 +30,6 @@ import org.springframework.stereotype.Service;
 public class VerificationCodeServiceImpl implements VerificationCodeService {
 
   private static final SecureRandom RANDOM = new SecureRandom();
-  private static final int CODE_BOUND = 1_000_000;
   private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
 
   private final StringRedisTemplate redisTemplate;
@@ -55,7 +56,7 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
       throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS, "今日验证码发送次数已达上限");
     }
 
-    String code = String.format("%06d", RANDOM.nextInt(CODE_BOUND));
+    String code = String.format(CODE_FORMAT, RANDOM.nextInt(CODE_BOUND));
     redisTemplate.opsForValue().set(codeKey(scene.getCode(), normalized), code, CODE_TTL);
     return code;
   }

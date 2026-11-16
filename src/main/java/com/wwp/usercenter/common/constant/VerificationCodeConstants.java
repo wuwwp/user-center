@@ -9,6 +9,15 @@ public final class VerificationCodeConstants {
   public static final String COOLDOWN_KEY_PREFIX = "verify:cooldown:";
   public static final String DAILY_KEY_PREFIX = "verify:daily:";
 
+  /** 验证码位数；生成宽度与入参正则都从这里派生。 */
+  public static final int CODE_LENGTH = 6;
+
+  /** 验证码取值上界，即 10^CODE_LENGTH。 */
+  public static final int CODE_BOUND = (int) Math.pow(10, CODE_LENGTH);
+
+  /** 生成验证码时补零用的格式串。 */
+  public static final String CODE_FORMAT = "%0" + CODE_LENGTH + "d";
+
   /** 验证码有效期。 */
   public static final Duration CODE_TTL = Duration.ofMinutes(5);
 

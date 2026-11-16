@@ -2,6 +2,7 @@ package com.wwp.usercenter.service.impl;
 
 import com.wwp.usercenter.common.constant.VerificationCodeConstants;
 import com.wwp.usercenter.model.enums.EmailScene;
+import com.wwp.usercenter.service.EmailDeliveryException;
 import com.wwp.usercenter.service.EmailSender;
 import com.wwp.usercenter.util.EmailUtils;
 import jakarta.mail.MessagingException;
@@ -11,7 +12,7 @@ import java.nio.charset.StandardCharsets;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.mail.MailPreparationException;
+import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -46,8 +47,8 @@ public class SmtpEmailSender implements EmailSender {
 
   @Override
   public void sendVerificationCode(String email, EmailScene scene, String code) {
-    MimeMessage message = mailSender.createMimeMessage();
     try {
+      MimeMessage message = mailSender.createMimeMessage();
       MimeMessageHelper helper =
           new MimeMessageHelper(message, false, StandardCharsets.UTF_8.name());
       helper.setFrom(from, fromName);
@@ -60,7 +61,9 @@ public class SmtpEmailSender implements EmailSender {
           scene.getCode(),
           EmailUtils.mask(email));
     } catch (MessagingException | UnsupportedEncodingException exception) {
-      throw new MailPreparationException("构建验证码邮件失败", exception);
+      throw new EmailDeliveryException("构建验证码邮件失败", exception);
+    } catch (MailException exception) {
+      throw new EmailDeliveryException("发送验证码邮件失败", exception);
     }
   }
 

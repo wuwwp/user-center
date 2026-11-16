@@ -26,6 +26,7 @@ import com.wwp.usercenter.model.param.RegisterParam;
 import com.wwp.usercenter.model.param.ResetPasswordParam;
 import com.wwp.usercenter.model.param.SendEmailCodeParam;
 import com.wwp.usercenter.security.JwtTokenProvider;
+import com.wwp.usercenter.service.EmailDeliveryException;
 import com.wwp.usercenter.service.EmailSender;
 import com.wwp.usercenter.service.UserCredentialService;
 import com.wwp.usercenter.service.VerificationCodeService;
@@ -37,7 +38,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.mail.MailSendException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @ExtendWith(MockitoExtension.class)
@@ -203,7 +203,7 @@ class AuthServiceImplTest {
   void should_keep_uniform_response_when_mail_transport_fails() {
     given(userMapper.selectOne(any())).willReturn(activeUser());
     given(verificationCodeService.issue(EMAIL, EmailScene.RESET)).willReturn("123456");
-    willThrow(new MailSendException("smtp down"))
+    willThrow(new EmailDeliveryException("smtp down", null))
         .given(emailSender)
         .sendVerificationCode(EMAIL, EmailScene.RESET, "123456");
 

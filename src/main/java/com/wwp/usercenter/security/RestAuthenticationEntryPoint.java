@@ -1,13 +1,10 @@
 package com.wwp.usercenter.security;
 
-import com.wwp.usercenter.common.BaseResponse;
 import com.wwp.usercenter.common.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
@@ -24,9 +21,6 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
   public void commence(
       HttpServletRequest request, HttpServletResponse response, AuthenticationException exception)
       throws IOException {
-    response.setStatus(ErrorCode.UNAUTHORIZED.getHttpStatus().value());
-    response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-    objectMapper.writeValue(response.getWriter(), BaseResponse.failure(ErrorCode.UNAUTHORIZED));
+    SecurityErrorResponseWriter.write(response, objectMapper, ErrorCode.UNAUTHORIZED);
   }
 }

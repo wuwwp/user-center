@@ -69,7 +69,7 @@ class VerificationCodeServiceImplTest {
 
     serviceWithClock.issue(EMAIL, EmailScene.REGISTER);
 
-    then(valueOperations).should().increment("verify:daily:" + EMAIL + ":20261117");
+    then(valueOperations).should().increment(VerificationCodeConstants.dailyKey(EMAIL, "20261117"));
   }
 
   @Test
@@ -112,7 +112,8 @@ class VerificationCodeServiceImplTest {
 
   @Test
   void should_fail_with_expired_when_code_absent_for_scene() {
-    given(valueOperations.get("verify:reset:" + EMAIL)).willReturn(null);
+    given(valueOperations.get(VerificationCodeConstants.codeKey(EmailScene.RESET.getCode(), EMAIL)))
+        .willReturn(null);
 
     assertThatThrownBy(() -> service.verifyAndConsume(EMAIL, EmailScene.RESET, "123456"))
         .isInstanceOf(BusinessException.class)
@@ -123,7 +124,10 @@ class VerificationCodeServiceImplTest {
 
   @Test
   void should_fail_with_invalid_and_keep_code_when_mismatch() {
-    given(valueOperations.get("verify:register:" + EMAIL)).willReturn("123456");
+    given(
+            valueOperations.get(
+                VerificationCodeConstants.codeKey(EmailScene.REGISTER.getCode(), EMAIL)))
+        .willReturn("123456");
 
     assertThatThrownBy(() -> service.verifyAndConsume(EMAIL, EmailScene.REGISTER, "654321"))
         .isInstanceOf(BusinessException.class)
@@ -134,10 +138,15 @@ class VerificationCodeServiceImplTest {
 
   @Test
   void should_consume_code_when_match() {
-    given(valueOperations.get("verify:register:" + EMAIL)).willReturn("123456");
+    given(
+            valueOperations.get(
+                VerificationCodeConstants.codeKey(EmailScene.REGISTER.getCode(), EMAIL)))
+        .willReturn("123456");
 
     service.verifyAndConsume("Alice@Example.com", EmailScene.REGISTER, " 123456 ");
 
-    then(redisTemplate).should().delete("verify:register:" + EMAIL);
+    then(redisTemplate)
+        .should()
+        .delete(VerificationCodeConstants.codeKey(EmailScene.REGISTER.getCode(), EMAIL));
   }
 }

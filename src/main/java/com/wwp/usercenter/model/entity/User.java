@@ -28,4 +28,19 @@ public class User {
   private LocalDateTime lastLoginTime;
   private LocalDateTime createTime;
   private LocalDateTime updateTime;
+
+  /** 是否已逻辑注销；注销后行仍保留，供恢复流程使用。 */
+  public boolean isDeleted() {
+    return isDelete == DeletedFlag.DELETED;
+  }
+
+  /** 是否已被封禁。 */
+  public boolean isBanned() {
+    return status == UserStatus.BANNED;
+  }
+
+  /** 未注销且状态正常，可作为正常账号登录或接收验证码。 */
+  public boolean isActive() {
+    return !isDeleted() && status == UserStatus.NORMAL;
+  }
 }

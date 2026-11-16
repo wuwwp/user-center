@@ -29,8 +29,9 @@
   - 测试：Testcontainers 集成测试覆盖注册→登录→改密→重置→登出→封禁拒绝重置；JaCoCo 行/分支覆盖率 70% 门槛
   - 时区：每日限发按 `user-center.time-zone`（默认 `Asia/Shanghai`）计算，`Clock` 注入；容器 `TZ` 固定，避免 UTC 容器在 08:00 跨日
   - SQL 分层：简单 CRUD 保留 Wrapper；`token_version` 原子自增用 `UserMapper.xml` 自定义 SQL，service 不再使用 `setSql`
-- 测试：49 个用例（JWT 5、Web/安全 10、Auth 18、User 5、验证码 8、SMTP 2、集成 1）；本机无 Docker 时集成测试跳过，已在 VM Docker 上执行通过
-- 覆盖率：JaCoCo 行 83.6%、分支 70.7%，`verify` 强制行/分支均不低于 70%
+  - 质量收尾：账号状态判断收敛到 `User`；401/403 共用 `SecurityErrorResponseWriter`；JWT 认证只查 `id/role/status/is_delete/token_version`；邮件通道统一抛 `EmailDeliveryException`；邮箱/验证码/密码校验改为组合注解与派生常量
+- 测试：51 个用例（JWT 5、Web/安全 11、Auth 18、User 5、验证码 8、SMTP 3、集成 1）；本机无 Docker 时集成测试跳过，已在 VM Docker 上执行通过
+- 覆盖率：JaCoCo 行 86.1%、分支 72.6%，`verify` 强制行/分支均不低于 70%
 - 计划 v0.14：重置接口、验证码规则、时区、SQL 分层、SMTP 双实现、枚举取舍、封禁重置策略、集成测试与覆盖率门槛
 
 ## 环境
@@ -46,7 +47,7 @@
 
 ## 验收结果（阶段 1）
 
-- 本机 `./mvnw verify`：48 个测试通过 + 1 个 Testcontainers 用例跳过（本机无 Docker），Spotless、Checkstyle、JaCoCo 覆盖率检查通过
+- 本机 `./mvnw verify`：50 个测试通过 + 1 个 Testcontainers 用例跳过（本机无 Docker），Spotless、Checkstyle、JaCoCo 覆盖率检查通过
 - VM Docker：`AuthFlowIntegrationTest` 1 个通过（真实 MySQL/Redis，覆盖注册→登录→改密→重置→登出→封禁拒绝重置）
 - 注册：发码 → 注册 200 + `userAccount`；重复注册 40900；弱密码 40000
 - 登录：200 + JWT；改密后旧令牌 `/users/me` → 401，新密码可登录；错误旧密码 40101
