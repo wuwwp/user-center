@@ -1,7 +1,7 @@
 # 项目进度
 
 更新日期：2026-11-16
-设计文档版本：v0.9
+设计文档版本：v0.10
 当前阶段：阶段 1 完成（账号核心）；下一步阶段 2
 
 ## 项目定位（护栏）
@@ -26,8 +26,9 @@
   - 登出、改密、验证码重置均自增 `token_version`，旧令牌立即 401
   - 未接 SMTP：`LoggingEmailSender` 把验证码写入日志（邮箱掩码）；生产 `log-code=false`，验证码无法投递（已知阻塞）
   - 时区：每日限发按 `user-center.time-zone`（默认 `Asia/Shanghai`）计算，`Clock` 注入；容器 `TZ` 固定，避免 UTC 容器在 08:00 跨日
+  - SQL 分层：凭证写入全部收口到 `UserMapper.xml`；`token_version` 由数据库原子自增，service 不再使用 `setSql`
 - 测试：43 个用例通过（JWT 5、Web/安全 10、Auth 15、User 5、验证码 8）
-- 计划 v0.9：重置接口、验证码规则、时区治理；演进路线记录 passwordless 候选
+- 计划 v0.10：重置接口、验证码规则、时区治理、SQL 收口；演进路线记录 passwordless 候选
 
 ## 环境
 

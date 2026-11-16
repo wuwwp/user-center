@@ -5,7 +5,7 @@
 | 项目 | 内容 |
 |---|---|
 | 文档名称 | 用户中心（统一认证服务）设计文档 |
-| 文档版本 | v0.9 |
+| 文档版本 | v0.10 |
 | 文档状态 | 评审中 |
 | 编写日期 | 2026-11-13 |
 | 适用范围 | user-center 服务与配套 Web 前端的设计、开发、测试与部署 |
@@ -24,6 +24,7 @@
 | v0.7 | 2026-11-15 | — | 阶段 1 实现补充：新增验证码重置密码接口；明确验证码位数/有效期/限发与场景枚举；明确 `user_account` 生成规则 |
 | v0.8 | 2026-11-16 | — | 演进路线新增「邮箱验证码登录（passwordless + 首次登录自动开户）」候选，暂不排期 |
 | v0.9 | 2026-11-16 | — | 时间处理：业务日期按配置时区（默认 `Asia/Shanghai`）计算，容器固定 `TZ`；修正如「未注册邮箱不写码」的旧表述 |
+| v0.10 | 2026-11-16 | — | SQL 收口：自定义 SQL 统一放 `UserMapper.xml`，禁止 `setSql` 等原生片段；`token_version` 原子自增改为显式 update |
 
 ## 1. 引言
 
@@ -278,6 +279,7 @@ create table `user` (
 - 验证码按业务场景隔离：`verify:register:{email}`、`verify:reset:{email}`、`verify:recover:{email}`，校验时严格匹配场景，禁止跨场景复用
 - 发码限频：同邮箱 60 秒一次（`verify:cooldown:{email}`），每日 10 次（`verify:daily:{email}:{date}`）
 - 时间与时区：业务日期按 `user-center.time-zone`（默认 `Asia/Shanghai`）计算，通过注入 `Clock` 使用；容器显式设置 `TZ=Asia/Shanghai`，不依赖镜像默认 UTC
+- SQL 分层：自定义 SQL 一律放 `UserMapper.xml`；`token_version` 通过单条 update 在数据库内原子自增，service 不拼 SQL
 - 发码接口统一返回成功，不暴露邮箱是否注册；未注册邮箱照常限频与写码，但不投递，后续校验自然失败
 - 登录失败、发码同时做账号维度与 IP 维度计数；客户端 IP 仅信任来自 Nginx 的 `X-Forwarded-For`，且只取可信代理追加的最后一跳
 

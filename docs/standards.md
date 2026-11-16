@@ -67,11 +67,17 @@
 ## 8. SQL 与 MyBatis
 
 - SQL 关键字一律小写：`select` / `insert` / `update` / `where` / `create table` / `unique key`
-- 全部使用参数绑定，禁止 `${}` 拼接用户输入
+- SQL 只允许出现在 `src/main/resources/mapper/*.xml`；service、controller 不写 SQL
+- 禁止在 Java 代码中拼接 SQL，也禁止使用 MyBatis-Plus 的 `setSql`、`apply` 等原生 SQL 扩展
+- `BaseMapper` 只用于简单单表 CRUD；原子自增、批量、多表或复杂条件一律写 XML
+- 自定义 SQL 统一放 XML，不使用 `@Select` / `@Update` 等注解 SQL（`BaseMapper` 内置方法除外）
+- 参数一律用 `#{}`；`${}` 仅允许用于表名、列名等无法参数化的白名单场景，且值必须来自代码常量，不得来自用户输入
+- 需要数据库原子更新时（如 `token_version = token_version + 1`）直接写一条 update，禁止先查后改，避免并发丢更新
 - 禁止 `select *`，明确列名
 - 分页查询必须有上限；深分页场景再考虑游标
 - 唯一索引、联合索引按查询条件设计；索引变更需写明理由
-- MyBatis XML 放在 `src/main/resources/mapper/`，namespace 与 Mapper 全限定名一致
+- 表名、列名遇到保留字（如 `user`）使用反引号
+- MyBatis XML 放在 `src/main/resources/mapper/`，namespace 与 Mapper 全限定名一致，语句 `id` 与 Mapper 方法名一致
 
 ## 9. 常量与枚举
 
@@ -114,5 +120,6 @@
   - 是否有魔法值
   - 日志是否泄露敏感信息
   - 分页是否有上限
+  - SQL 是否只出现在 mapper XML，service 是否残留 `setSql` 或字符串拼接
   - SQL 是否全为参数绑定
   - 异常是否被吞掉
