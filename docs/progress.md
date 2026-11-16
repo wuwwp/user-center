@@ -1,7 +1,7 @@
 # 项目进度
 
-更新日期：2026-11-15
-设计文档版本：v0.7
+更新日期：2026-11-16
+设计文档版本：v0.9
 当前阶段：阶段 1 完成（账号核心）；下一步阶段 2
 
 ## 项目定位（护栏）
@@ -25,8 +25,9 @@
   - 登录：BCrypt 校验在事务外，`UserCredentialService.recordLogin` 短事务只更新 `last_login_time`
   - 登出、改密、验证码重置均自增 `token_version`，旧令牌立即 401
   - 未接 SMTP：`LoggingEmailSender` 把验证码写入日志（邮箱掩码）；生产 `log-code=false`，验证码无法投递（已知阻塞）
-- 测试：42 个用例通过（JWT 5、Web/安全 10、Auth 15、User 5、验证码 7）
-- 计划 v0.7：新增 `post /api/v1/auth/password/reset`，明确验证码规则与 `user_account` 生成
+  - 时区：每日限发按 `user-center.time-zone`（默认 `Asia/Shanghai`）计算，`Clock` 注入；容器 `TZ` 固定，避免 UTC 容器在 08:00 跨日
+- 测试：43 个用例通过（JWT 5、Web/安全 10、Auth 15、User 5、验证码 8）
+- 计划 v0.9：重置接口、验证码规则、时区治理；演进路线记录 passwordless 候选
 
 ## 环境
 
@@ -41,12 +42,13 @@
 
 ## 验收结果（阶段 1）
 
-- `./mvnw verify`：42 个测试、Spotless、Checkstyle 全部通过
+- `./mvnw verify`：43 个测试、Spotless、Checkstyle 全部通过
 - 注册：发码 → 注册 200 + `userAccount`；重复注册 40900；弱密码 40000
 - 登录：200 + JWT；改密后旧令牌 `/users/me` → 401，新密码可登录；错误旧密码 40101
 - 重置：错误验证码 40001；正确验证码重置成功；重置后旧令牌失效
 - 登出：200，随后同一令牌 `/users/me` → 401；未认证登出 → 401
 - 验证码：60 秒内重复发送 42900；register 场景验证码用于 reset → 40002；未注册邮箱发 reset 码返回 200 且不投递
+- 时区：UTC 16:30（北京次日 00:30）生成的每日计数键为次日日期，跨日边界正确
 - 数据库核对：`role=0`、`is_delete=0`、`token_version=3`（改密/重置/登出各 +1）、BCrypt 前缀 `$2a$10$`
 - 阶段 0 行为保持：未登录 401、非法令牌 401、参数校验 40000、受保护资源 40400
 
