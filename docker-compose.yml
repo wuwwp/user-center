@@ -46,6 +46,15 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       TZ: Asia/Shanghai
       USER_CENTER_TIME_ZONE: ${USER_CENTER_TIME_ZONE:-Asia/Shanghai}
+      MAIL_MODE: ${MAIL_MODE:-smtp}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-465}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-用户中心}
+      MAIL_SSL_ENABLE: ${MAIL_SSL_ENABLE:-true}
+      MAIL_STARTTLS_ENABLE: ${MAIL_STARTTLS_ENABLE:-false}
       DB_URL: jdbc:mysql://mysql:3306/usercenter?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
       DB_USERNAME: usercenter
       DB_PASSWORD: ${DB_PASSWORD}

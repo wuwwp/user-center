@@ -27,6 +27,19 @@ spring:
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
       timeout: 3s
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:465}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.ssl.enable: ${MAIL_SSL_ENABLE:true}
+      mail.smtp.starttls.enable: ${MAIL_STARTTLS_ENABLE:false}
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
   jackson:
     time-zone: Asia/Shanghai
   lifecycle:
@@ -44,8 +57,10 @@ mybatis-plus:
 
 user-center:
   mail:
-    # 开发期把验证码输出到日志；接入 SMTP 前置为 false，避免验证码落日志
-    log-code: ${MAIL_LOG_CODE:true}
+    # log=验证码写日志（开发）；smtp=真实发信（生产）
+    mode: ${MAIL_MODE:log}
+    from: ${MAIL_FROM:}
+    from-name: ${MAIL_FROM_NAME:用户中心}
   # 每日限发等日期逻辑使用的时区，不依赖 JVM 默认时区
   time-zone: ${USER_CENTER_TIME_ZONE:Asia/Shanghai}
 

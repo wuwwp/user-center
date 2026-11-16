@@ -25,6 +25,7 @@ import com.wwp.usercenter.util.UserAccountUtils;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.mail.MailException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -125,7 +126,16 @@ public class AuthServiceImpl implements AuthService {
     User user = findByEmail(email);
     String code = verificationCodeService.issue(email, param.scene());
     if (shouldDeliver(user, param.scene())) {
-      emailSender.sendVerificationCode(email, param.scene(), code);
+      try {
+        emailSender.sendVerificationCode(email, param.scene(), code);
+      } catch (MailException exception) {
+        // 邮件故障不能改变对外响应，否则“可投递/不可投递”的差异会变成用户枚举信号
+        log.error(
+            "send verification code failed, scene={}, email={}",
+            param.scene().getCode(),
+            EmailUtils.mask(email),
+            exception);
+      }
     }
     log.info(
         "verification code issued, scene={}, email={}",

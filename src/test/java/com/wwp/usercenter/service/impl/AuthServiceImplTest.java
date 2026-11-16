@@ -1,12 +1,14 @@
 package com.wwp.usercenter.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 
 import com.wwp.usercenter.common.BusinessException;
@@ -35,6 +37,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.mail.MailSendException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @ExtendWith(MockitoExtension.class)
@@ -194,6 +197,18 @@ class AuthServiceImplTest {
     authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.RESET));
 
     then(emailSender).should().sendVerificationCode(EMAIL, EmailScene.RESET, "123456");
+  }
+
+  @Test
+  void should_keep_uniform_response_when_mail_transport_fails() {
+    given(userMapper.selectOne(any())).willReturn(activeUser());
+    given(verificationCodeService.issue(EMAIL, EmailScene.RESET)).willReturn("123456");
+    willThrow(new MailSendException("smtp down"))
+        .given(emailSender)
+        .sendVerificationCode(EMAIL, EmailScene.RESET, "123456");
+
+    assertThatCode(() -> authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.RESET)))
+        .doesNotThrowAnyException();
   }
 
   @Test

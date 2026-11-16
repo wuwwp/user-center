@@ -14,5 +14,5 @@ logging:
 
 user-center:
   mail:
-    # 生产环境禁止把验证码写入日志；接入 SMTP 前验证码无法投递，属已知阻塞项
-    log-code: false
+    # 生产默认真实发信；缺少 SMTP 配置时启动失败，避免静默不投递或把验证码写进日志
+    mode: ${MAIL_MODE:smtp}
