@@ -1,7 +1,7 @@
 # 项目进度
 
 更新日期：2026-11-16
-设计文档版本：v0.14
+设计文档版本：v0.15
 当前阶段：阶段 1 完成（含 Testcontainers 集成测试与覆盖率门槛）；下一步阶段 2
 
 ## 项目定位（护栏）
@@ -24,7 +24,7 @@
   - 发码接口统一返回成功；仅向该场景真正需要的账号投递，避免用户枚举
   - 登录：BCrypt 校验在事务外，`UserCredentialService.recordLogin` 短事务只更新 `last_login_time`
   - 登出、改密、验证码重置均自增 `token_version`，旧令牌立即 401
-  - 邮件：`user-center.mail.mode=log|smtp` 双实现；log 模式写日志（邮箱掩码），smtp 模式真实发信；邮件失败只记 error、不改变响应
+  - 邮件：`user-center.mail.mode=log|smtp` 双实现；log 模式写日志（邮箱掩码）且仅在非 prod 加载，smtp 模式真实发信；邮件失败只记 error、不改变响应
   - 封禁账号：重置场景不发码，重置接口在验证码通过后返回 40103；需管理员解封后才能自助重置
   - 测试：Testcontainers 集成测试覆盖注册→登录→改密→重置→登出→封禁拒绝重置；JaCoCo 行/分支覆盖率 70% 门槛
   - 时区：每日限发按 `user-center.time-zone`（默认 `Asia/Shanghai`）计算，`Clock` 注入；容器 `TZ` 固定，避免 UTC 容器在 08:00 跨日

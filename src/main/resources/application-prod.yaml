@@ -14,5 +14,5 @@ logging:
 
 user-center:
   mail:
-    # 生产默认真实发信；缺少 SMTP 配置时启动失败，避免静默不投递或把验证码写进日志
+    # 生产只允许真实发信；log 实现已用 @Profile("!prod") 排除，误配 log 会启动失败
     mode: ${MAIL_MODE:smtp}
