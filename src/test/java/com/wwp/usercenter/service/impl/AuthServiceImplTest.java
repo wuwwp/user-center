@@ -212,6 +212,32 @@ class AuthServiceImplTest {
   }
 
   @Test
+  void should_not_send_reset_code_when_account_banned() {
+    User user = activeUser();
+    user.setStatus(UserStatus.BANNED);
+    given(userMapper.selectOne(any())).willReturn(user);
+    given(verificationCodeService.issue(EMAIL, EmailScene.RESET)).willReturn("123456");
+
+    authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.RESET));
+
+    then(emailSender).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void should_reject_reset_when_account_banned() {
+    User user = activeUser();
+    user.setStatus(UserStatus.BANNED);
+    given(userMapper.selectOne(any())).willReturn(user);
+
+    assertThatThrownBy(
+            () -> authService.resetPassword(new ResetPasswordParam(EMAIL, "654321", PASSWORD)))
+        .isInstanceOf(BusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(ErrorCode.ACCOUNT_BANNED);
+    then(userCredentialService).shouldHaveNoInteractions();
+  }
+
+  @Test
   void should_not_send_code_but_return_success_when_account_absent() {
     given(userMapper.selectOne(any())).willReturn(null);
     given(verificationCodeService.issue(EMAIL, EmailScene.RESET)).willReturn("123456");

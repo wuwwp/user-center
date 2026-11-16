@@ -160,6 +160,9 @@ public class AuthServiceImpl implements AuthService {
     if (user.getIsDelete() == DeletedFlag.DELETED) {
       throw new BusinessException(ErrorCode.ACCOUNT_DELETED);
     }
+    if (user.getStatus() == UserStatus.BANNED) {
+      throw new BusinessException(ErrorCode.ACCOUNT_BANNED);
+    }
 
     userCredentialService.updatePassword(user.getId(), passwordEncoder.encode(param.newPassword()));
     log.info("password reset by email code, userId={}", user.getId());
@@ -174,7 +177,10 @@ public class AuthServiceImpl implements AuthService {
   private static boolean shouldDeliver(User user, EmailScene scene) {
     return switch (scene) {
       case REGISTER -> user == null;
-      case RESET -> user != null && user.getIsDelete() == DeletedFlag.NOT_DELETED;
+      case RESET ->
+          user != null
+              && user.getIsDelete() == DeletedFlag.NOT_DELETED
+              && user.getStatus() == UserStatus.NORMAL;
       case RECOVER -> user != null && user.getIsDelete() == DeletedFlag.DELETED;
     };
   }
