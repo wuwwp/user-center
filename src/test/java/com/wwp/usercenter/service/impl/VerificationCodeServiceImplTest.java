@@ -12,7 +12,10 @@ import com.wwp.usercenter.common.BusinessException;
 import com.wwp.usercenter.common.ErrorCode;
 import com.wwp.usercenter.common.constant.VerificationCodeConstants;
 import com.wwp.usercenter.model.enums.EmailScene;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +30,7 @@ import org.springframework.data.redis.core.ValueOperations;
 class VerificationCodeServiceImplTest {
 
   private static final String EMAIL = "alice@example.com";
+  private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
   @Mock private StringRedisTemplate redisTemplate;
   @Mock private ValueOperations<String, String> valueOperations;
@@ -36,7 +40,7 @@ class VerificationCodeServiceImplTest {
   @BeforeEach
   void setUp() {
     given(redisTemplate.opsForValue()).willReturn(valueOperations);
-    service = new VerificationCodeServiceImpl(redisTemplate);
+    service = new VerificationCodeServiceImpl(redisTemplate, Clock.system(ZONE));
   }
 
   @Test
@@ -51,6 +55,21 @@ class VerificationCodeServiceImplTest {
     ArgumentCaptor<String> key = ArgumentCaptor.forClass(String.class);
     then(valueOperations).should().set(key.capture(), eq(code), eq(Duration.ofMinutes(5)));
     assertThat(key.getValue()).isEqualTo("verify:register:" + EMAIL);
+  }
+
+  @Test
+  void should_use_configured_zone_for_daily_key_across_midnight() {
+    // UTC 16:30 已是北京时间次日 00:30，日期键必须按 Asia/Shanghai 计算
+    Clock clock = Clock.fixed(Instant.parse("2026-11-16T16:30:00Z"), ZONE);
+    VerificationCodeServiceImpl serviceWithClock =
+        new VerificationCodeServiceImpl(redisTemplate, clock);
+    given(valueOperations.setIfAbsent(anyString(), anyString(), eq(Duration.ofSeconds(60))))
+        .willReturn(true);
+    given(valueOperations.increment(anyString())).willReturn(1L);
+
+    serviceWithClock.issue(EMAIL, EmailScene.REGISTER);
+
+    then(valueOperations).should().increment("verify:daily:" + EMAIL + ":20261117");
   }
 
   @Test

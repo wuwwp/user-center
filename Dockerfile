@@ -9,6 +9,8 @@ COPY src src
 RUN ./mvnw -B -q -DskipTests package
 
 FROM eclipse-temurin:21-jre
+# 业务日期与日志统一按东八区，避免容器默认 UTC 让「每日」在北京时间 08:00 才跨日
+ENV TZ=Asia/Shanghai
 WORKDIR /app
 RUN groupadd --system app && useradd --system --gid app app
 COPY --from=build /workspace/target/*.jar app.jar

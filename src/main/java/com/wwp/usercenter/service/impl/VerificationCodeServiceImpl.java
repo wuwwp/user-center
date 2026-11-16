@@ -14,6 +14,7 @@ import com.wwp.usercenter.model.enums.EmailScene;
 import com.wwp.usercenter.service.VerificationCodeService;
 import com.wwp.usercenter.util.EmailUtils;
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
   private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
 
   private final StringRedisTemplate redisTemplate;
+  private final Clock clock;
 
   @Override
   public String issue(String email, EmailScene scene) {
@@ -41,7 +43,7 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
       throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS, "验证码发送过于频繁，请稍后再试");
     }
 
-    String dailyKey = dailyKey(normalized, LocalDate.now().format(DATE_FORMAT));
+    String dailyKey = dailyKey(normalized, LocalDate.now(clock).format(DATE_FORMAT));
     Long count = redisTemplate.opsForValue().increment(dailyKey);
     if (count == null) {
       throw new BusinessException(ErrorCode.SYSTEM_ERROR);

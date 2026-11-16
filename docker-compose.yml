@@ -44,6 +44,8 @@ services:
     build: .
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Shanghai
+      USER_CENTER_TIME_ZONE: ${USER_CENTER_TIME_ZONE:-Asia/Shanghai}
       DB_URL: jdbc:mysql://mysql:3306/usercenter?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
       DB_USERNAME: usercenter
       DB_PASSWORD: ${DB_PASSWORD}

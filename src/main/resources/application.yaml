@@ -46,6 +46,8 @@ user-center:
   mail:
     # 开发期把验证码输出到日志；接入 SMTP 前置为 false，避免验证码落日志
     log-code: ${MAIL_LOG_CODE:true}
+  # 每日限发等日期逻辑使用的时区，不依赖 JVM 默认时区
+  time-zone: ${USER_CENTER_TIME_ZONE:Asia/Shanghai}
 
 security:
   jwt:
