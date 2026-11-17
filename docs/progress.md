@@ -1,8 +1,8 @@
 # 项目进度
 
-更新日期：2026-11-16
+更新日期：2026-11-17
 设计文档版本：v0.15
-当前阶段：阶段 1 完成（含 Testcontainers 集成测试与覆盖率门槛）；下一步阶段 2
+当前阶段：阶段 1 完成；阶段 2 待开始（先读 `docs/stage-2-handoff.md`）
 
 ## 项目定位（护栏）
 
@@ -30,9 +30,9 @@
   - 时区：每日限发按 `user-center.time-zone`（默认 `Asia/Shanghai`）计算，`Clock` 注入；容器 `TZ` 固定，避免 UTC 容器在 08:00 跨日
   - SQL 分层：简单 CRUD 保留 Wrapper；`token_version` 原子自增用 `UserMapper.xml` 自定义 SQL，service 不再使用 `setSql`
   - 质量收尾：账号状态判断收敛到 `User`；401/403 共用 `SecurityErrorResponseWriter`；JWT 认证只查 `id/role/status/is_delete/token_version`；邮件通道统一抛 `EmailDeliveryException`；邮箱/验证码/密码校验改为组合注解与派生常量
-- 测试：51 个用例（JWT 5、Web/安全 11、Auth 18、User 5、验证码 8、SMTP 3、集成 1）；本机无 Docker 时集成测试跳过，已在 VM Docker 上执行通过
+- 测试：51 个用例（JWT 5、Web/安全 11、Auth 18、User 5、验证码 8、SMTP 3、集成 1）；本机 50 通过 + 1 个 Testcontainers 跳过；VM Docker 集成测试在重构后通过（2026-11-17）
 - 覆盖率：JaCoCo 行 86.1%、分支 72.6%，`verify` 强制行/分支均不低于 70%
-- 计划 v0.14：重置接口、验证码规则、时区、SQL 分层、SMTP 双实现、枚举取舍、封禁重置策略、集成测试与覆盖率门槛
+- 阶段 2 交接：范围、开放决策、验收清单与验证命令见 `docs/stage-2-handoff.md`
 
 ## 环境
 
@@ -48,7 +48,7 @@
 ## 验收结果（阶段 1）
 
 - 本机 `./mvnw verify`：50 个测试通过 + 1 个 Testcontainers 用例跳过（本机无 Docker），Spotless、Checkstyle、JaCoCo 覆盖率检查通过
-- VM Docker：`AuthFlowIntegrationTest` 1 个通过（真实 MySQL/Redis，覆盖注册→登录→改密→重置→登出→封禁拒绝重置）
+- VM Docker（重构后，2026-11-17）：`AuthFlowIntegrationTest` 1 个通过，`BUILD SUCCESS`（真实 MySQL/Redis，覆盖注册→登录→改密→重置→登出→封禁拒绝重置，以及 `selectAuthStateById` 投影）
 - 注册：发码 → 注册 200 + `userAccount`；重复注册 40900；弱密码 40000
 - 登录：200 + JWT；改密后旧令牌 `/users/me` → 401，新密码可登录；错误旧密码 40101
 - 重置：错误验证码 40001；正确验证码重置成功；重置后旧令牌失效
@@ -67,11 +67,11 @@
 
 ## 交接
 
-- 新会话先读本文件，再按需读 `docs/plan.md` §8.2 与 §11；设计变更先改文档再改代码
-- 课程文件在 `D:\teach\user-center-spring-security`（本地，不提交仓库）；项目代码在 `D:\yupiProject\user-center`
-- 应用当前未运行；VM 上 MySQL/Redis 容器保持运行，启动命令见上方
-- 关键约束：JWT 不含 role；角色以数据库为准；改密/登出/封禁/恢复/角色变更必须自增 `token_version`
-- 敏感配置只放 `application-local.yaml`（gitignore）或 VM `.env`
+- 新会话先读本文件与 `docs/stage-2-handoff.md`，再按需读 `docs/plan.md` §8.2、§8.3 与 §11；设计变更先改文档再改代码
+- 阶段 2 每次改动认证链路后，按交接文档重跑 VM Docker `AuthFlowIntegrationTest`；本机无 Docker 时该用例会跳过
+- Git：本地 `main` 有 1 个未推送的阶段 1 收尾/交接提交；以 `git status` 为准；`CLAUDE.md` 裁剪未提交，先决定提交或回退
+- 课程文件在 `D:\teach\user-center-spring-security`（本地，不提交仓库）；项目代码在 `D:\yupiProject\user-center`；应用当前未运行，VM 上 MySQL/Redis 保持运行，启动命令见上方
+- 关键约束：JWT 不含 role，角色以数据库为准；改密/登出/封禁/恢复/角色变更必须自增 `token_version`；敏感配置只放 `application-local.yaml`（gitignore）或 VM `.env`
 
 ## 待确认 / 阻塞
 

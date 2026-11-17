@@ -3,6 +3,7 @@ package com.wwp.usercenter.model.enums;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import java.util.Arrays;
+import lombok.Getter;
 
 /** 邮箱验证码场景。不同场景使用不同 Redis 键，禁止跨场景复用验证码。 */
 public enum EmailScene {
@@ -11,7 +12,7 @@ public enum EmailScene {
   RECOVER("recover", "恢复账号");
 
   private final String code;
-  private final String description;
+  @Getter private final String description;
 
   EmailScene(String code, String description) {
     this.code = code;
@@ -21,10 +22,6 @@ public enum EmailScene {
   @JsonValue
   public String getCode() {
     return code;
-  }
-
-  public String getDescription() {
-    return description;
   }
 
   @JsonCreator
