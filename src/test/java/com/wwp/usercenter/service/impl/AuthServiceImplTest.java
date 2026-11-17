@@ -91,7 +91,9 @@ class AuthServiceImplTest {
     assertThat(result.token()).isEqualTo("jwt");
     assertThat(result.tokenType()).isEqualTo("Bearer");
     assertThat(result.expiresIn()).isEqualTo(7200);
+    then(loginAttemptService).should().clearAccountFailures(EMAIL);
     then(userCredentialService).should().recordLogin(user.getId());
+    then(passwordPolicyService).shouldHaveNoInteractions();
   }
 
   @Test
@@ -103,6 +105,7 @@ class AuthServiceImplTest {
         .isInstanceOf(BusinessException.class)
         .extracting("errorCode")
         .isEqualTo(ErrorCode.INVALID_CREDENTIALS);
+    then(loginAttemptService).should().recordFailure(EMAIL, CLIENT_IP);
     then(userCredentialService).shouldHaveNoInteractions();
   }
 
@@ -115,6 +118,7 @@ class AuthServiceImplTest {
         .extracting("errorCode")
         .isEqualTo(ErrorCode.INVALID_CREDENTIALS);
     then(passwordEncoder).should().matches(eq(PASSWORD), anyString());
+    then(loginAttemptService).should().recordFailure(EMAIL, CLIENT_IP);
   }
 
   @Test
@@ -310,53 +314,6 @@ class AuthServiceImplTest {
         .isEqualTo(ErrorCode.LOGIN_LOCKED);
     then(userMapper).shouldHaveNoInteractions();
     then(passwordEncoder).should(never()).matches(anyString(), anyString());
-  }
-
-  @Test
-  void should_record_failure_when_password_wrong() {
-    given(userMapper.selectOne(any())).willReturn(activeUser());
-    given(passwordEncoder.matches(PASSWORD, OLD_HASH)).willReturn(false);
-
-    assertThatThrownBy(() -> authService.login(new LoginParam(EMAIL, PASSWORD), CLIENT_IP))
-        .isInstanceOf(BusinessException.class);
-
-    then(loginAttemptService).should().recordFailure(EMAIL, CLIENT_IP);
-  }
-
-  @Test
-  void should_record_failure_when_account_absent() {
-    given(userMapper.selectOne(any())).willReturn(null);
-
-    assertThatThrownBy(() -> authService.login(new LoginParam(EMAIL, PASSWORD), CLIENT_IP))
-        .isInstanceOf(BusinessException.class);
-
-    then(loginAttemptService).should().recordFailure(EMAIL, CLIENT_IP);
-  }
-
-  @Test
-  void should_clear_account_failures_on_successful_login() {
-    User user = activeUser();
-    given(userMapper.selectOne(any())).willReturn(user);
-    given(passwordEncoder.matches(PASSWORD, OLD_HASH)).willReturn(true);
-    given(jwtTokenProvider.createToken(user)).willReturn("jwt");
-    given(jwtTokenProvider.getExpiration()).willReturn(Duration.ofHours(2));
-
-    authService.login(new LoginParam(EMAIL, PASSWORD), CLIENT_IP);
-
-    then(loginAttemptService).should().clearAccountFailures(EMAIL);
-  }
-
-  @Test
-  void should_not_apply_weak_password_policy_on_login() {
-    User user = activeUser();
-    given(userMapper.selectOne(any())).willReturn(user);
-    given(passwordEncoder.matches(PASSWORD, OLD_HASH)).willReturn(true);
-    given(jwtTokenProvider.createToken(user)).willReturn("jwt");
-    given(jwtTokenProvider.getExpiration()).willReturn(Duration.ofHours(2));
-
-    authService.login(new LoginParam(EMAIL, PASSWORD), CLIENT_IP);
-
-    then(passwordPolicyService).shouldHaveNoInteractions();
   }
 
   @Test

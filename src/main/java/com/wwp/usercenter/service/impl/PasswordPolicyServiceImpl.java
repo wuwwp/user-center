@@ -3,13 +3,11 @@ package com.wwp.usercenter.service.impl;
 import com.wwp.usercenter.common.BusinessException;
 import com.wwp.usercenter.common.ErrorCode;
 import com.wwp.usercenter.service.PasswordPolicyService;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
@@ -33,7 +31,7 @@ public class PasswordPolicyServiceImpl implements PasswordPolicyService {
   }
 
   PasswordPolicyServiceImpl(Set<String> weakPasswords) {
-    this.weakPasswords = Set.copyOf(weakPasswords);
+    this.weakPasswords = weakPasswords;
   }
 
   @Override
@@ -68,16 +66,15 @@ public class PasswordPolicyServiceImpl implements PasswordPolicyService {
 
   private static Set<String> loadDictionary() {
     ClassPathResource resource = new ClassPathResource(DICTIONARY_PATH);
-    try (BufferedReader reader =
-        new BufferedReader(
-            new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
-      Set<String> entries = new HashSet<>();
-      reader
-          .lines()
-          .map(String::trim)
-          .filter(line -> !line.isEmpty() && !line.startsWith("#"))
-          .map(PasswordPolicyServiceImpl::normalize)
-          .forEach(entries::add);
+    try {
+      Set<String> entries =
+          resource
+              .getContentAsString(StandardCharsets.UTF_8)
+              .lines()
+              .map(String::trim)
+              .filter(line -> !line.isEmpty() && !line.startsWith("#"))
+              .map(PasswordPolicyServiceImpl::normalize)
+              .collect(Collectors.toUnmodifiableSet());
       log.info("weak password dictionary loaded, entries={}", entries.size());
       return entries;
     } catch (IOException exception) {

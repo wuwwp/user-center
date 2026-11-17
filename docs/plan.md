@@ -5,7 +5,7 @@
 | 项目 | 内容 |
 |---|---|
 | 文档名称 | 用户中心（统一认证服务）设计文档 |
-| 文档版本 | v0.16 |
+| 文档版本 | v0.17 |
 | 文档状态 | 评审中 |
 | 编写日期 | 2026-11-13 |
 | 适用范围 | user-center 服务与配套 Web 前端的设计、开发、测试与部署 |
@@ -31,6 +31,7 @@
 | v0.14 | 2026-11-16 | — | 封禁账号不得自助重置密码；补 Testcontainers 集成测试与 JaCoCo 行/分支覆盖率 70% 门槛 |
 | v0.15 | 2026-11-16 | — | 日志邮件实现仅在非 prod 加载；生产误配 log 模式直接启动失败 |
 | v0.16 | 2026-11-17 | — | 阶段 2：登录失败账号/IP 双维度锁定、发码 IP 限频、弱密码字典、验证码失败次数、可信代理 IP 解析与安全测试矩阵 |
+| v0.17 | 2026-11-17 | — | 客户端 IP 统一由 Tomcat RemoteIpValve 解析：移除应用层 XFF 解析与 `trust-forwarded-for` 开关，应用只读 `remoteAddr` |
 
 ## 1. 引言
 
@@ -292,8 +293,8 @@ create table `user` (
 - 封禁账号：不允许自助重置密码；重置场景不发码，重置接口在验证码通过后返回 `ACCOUNT_BANNED`，需管理员解封后才能恢复
 - 发码接口统一返回成功，不暴露邮箱是否注册；未注册邮箱照常限频与写码，但不投递，后续校验自然失败
 - 登录失败、发码同时做账号维度与 IP 维度计数；客户端 IP 仅信任来自 Nginx 的 `X-Forwarded-For`，且只取可信代理追加的最后一跳
-- 客户端 IP 解析：默认关闭 `user-center.security.trust-forwarded-for`，使用 `getRemoteAddr()`；生产开启后只读取 `X-Forwarded-For` 的最后一跳并做字符校验。开启前提是后端端口不直接对公网暴露，Nginx 使用 `$proxy_add_x_forwarded_for` 追加真实对端地址
-- 反向代理：生产使用 `server.forward-headers-strategy=native`，由 Tomcat 修正 scheme/host 以正常输出 HSTS；不使用 `framework` 策略，因为它会隐藏原始转发头
+- 客户端 IP：应用层只使用 `getRemoteAddr()`。生产由 `server.forward-headers-strategy=native` 启用 Tomcat `RemoteIpValve`，从可信代理链解析真实客户端写入 `remoteAddr`，并修正 scheme/host；该阀会改写/移除 `X-Forwarded-For`，应用层不再自行解析转发头。开发环境没有代理阀时，`remoteAddr` 即直连对端
+- 反向代理前提：后端端口不直接对公网暴露，Nginx 使用 `$proxy_add_x_forwarded_for`；若代理不在默认私有网段，需要配置 `server.tomcat.remoteip.internal-proxies` / `trusted-proxies`
 
 ### 8.3 权限
 

@@ -10,9 +10,9 @@
 
 - 登录失败账号/IP 双维度锁定；发码邮箱/IP 限流；验证码失败 5 次作废。
 - 弱密码 Top 1000 字典在注册、重置、改密生效；登录不校验历史弱密码。
-- `ClientIpResolver` 默认用 `getRemoteAddr()`；生产 `trust-forwarded-for=true` 时只取 XFF 最后一跳。
+- 客户端 IP 只读 `getRemoteAddr()`；生产由 Tomcat RemoteIpValve 解析转发链，应用层不解析 XFF。
 - 安全用例覆盖：令牌版本/状态失效、IDOR、用户枚举一致性、安全响应头、锁定与限流错误码。
-- 本机 `./mvnw verify`：99 个用例（91 通过 + 8 个 Testcontainers 跳过），行 87.9% / 分支 80.1%。
+- 本机 `./mvnw verify`：94 个用例（86 通过 + 8 个 Testcontainers 跳过），行 87.7% / 分支 80.6%。
 - VM Docker 集成测试（2026-11-17）：`AuthFlowIntegrationTest` 8 个用例全部通过，`BUILD SUCCESS`。
 
 ## 2. 当前 Git / 工作区状态

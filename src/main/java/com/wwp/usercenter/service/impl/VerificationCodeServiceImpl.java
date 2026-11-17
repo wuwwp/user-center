@@ -19,6 +19,7 @@ import com.wwp.usercenter.common.ErrorCode;
 import com.wwp.usercenter.model.enums.EmailScene;
 import com.wwp.usercenter.service.VerificationCodeService;
 import com.wwp.usercenter.util.EmailUtils;
+import com.wwp.usercenter.util.RedisCounterUtils;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -78,12 +79,9 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
   /** 累计错误次数；达到上限时作废验证码与计数，用户必须重新发码。 */
   private void registerFailure(EmailScene scene, String normalizedEmail, String codeKey) {
     String key = failKey(scene.getCode(), normalizedEmail);
-    Long count = redisTemplate.opsForValue().increment(key);
+    Long count = RedisCounterUtils.increment(redisTemplate, key, CODE_TTL);
     if (count == null) {
       return;
-    }
-    if (count == 1L) {
-      redisTemplate.expire(key, CODE_TTL);
     }
     if (count >= FAIL_LIMIT) {
       redisTemplate.delete(List.of(codeKey, key));
@@ -93,12 +91,9 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
 
   /** 每日计数首次递增时设置 TTL，超过上限直接拒绝。 */
   private void incrementWithLimit(String key, int limit, String message) {
-    Long count = redisTemplate.opsForValue().increment(key);
+    Long count = RedisCounterUtils.increment(redisTemplate, key, DAILY_COUNTER_TTL);
     if (count == null) {
       throw new BusinessException(ErrorCode.SYSTEM_ERROR);
-    }
-    if (count == 1L) {
-      redisTemplate.expire(key, DAILY_COUNTER_TTL);
     }
     if (count > limit) {
       throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS, message);

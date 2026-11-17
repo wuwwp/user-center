@@ -28,10 +28,10 @@
   - 登录锁定：账号 `login:fail:account:{email}` 5 次 / 15 分钟；IP `login:fail:ip:{ip}` 50 次 / 15 分钟；返回 40102；不存在账号同样计数；成功登录只清账号维度
   - 发码限流：邮箱 60 秒、每日 10 次；IP 每日 50 次；验证码错误 5 次后作废并返回 42900，重新发码清空失败计数
   - 弱密码：SecLists（MIT）Top 1000 内置字典，统一小写 + leet 还原；注册/重置/改密生效，登录不生效；命中返回 40000
-  - 客户端 IP：`ClientIpResolver`，默认使用 `getRemoteAddr()`；生产开启 `trust-forwarded-for` 后只取 `X-Forwarded-For` 最后一跳并做字符校验
+  - 客户端 IP：应用层只读 `getRemoteAddr()`；生产由 Tomcat RemoteIpValve 解析转发链并写入 `remoteAddr`，不重复解析已被阀改写的 XFF
   - 安全测试：令牌失效矩阵、IDOR（忽略客户端 userId）、用户枚举响应一致、安全响应头、锁定/限流错误码
-- 测试：99 个用例（JWT 5、JWT 过滤器 7、Web/安全 15、Auth 25、User 6、验证码 11、锁定 7、弱密码 7、IP 5、SMTP 3、集成 8）
-- 覆盖率：JaCoCo 行 87.9%、分支 80.1%，`verify` 强制行/分支均不低于 70%
+- 测试：94 个用例（JWT 5、JWT 过滤器 7、Web/安全 15、Auth 21、User 6、验证码 11、锁定 7、弱密码 7、IP 4、SMTP 3、集成 8）
+- 覆盖率：JaCoCo 行 87.7%、分支 80.6%，`verify` 强制行/分支均不低于 70%
 
 ## 环境
 
@@ -46,7 +46,7 @@
 
 ## 验收结果（阶段 2）
 
-- 本机 `./mvnw verify`：99 个测试（91 通过 + 8 个 Testcontainers 用例跳过），Spotless、Checkstyle、JaCoCo 通过
+- 本机 `./mvnw verify`：94 个测试（86 通过 + 8 个 Testcontainers 用例跳过），Spotless、Checkstyle、JaCoCo 通过
 - VM Docker（2026-11-17）：`AuthFlowIntegrationTest` 8 个用例全部通过，`BUILD SUCCESS`（真实 MySQL/Redis）
 - 账号锁定：连续 5 次错误密码后，第 6 次即使密码正确也返回 40102；成功登录后计数清零
 - IP 锁定：同一 IP 对 50 个不同邮箱失败后，第 51 次返回 40102

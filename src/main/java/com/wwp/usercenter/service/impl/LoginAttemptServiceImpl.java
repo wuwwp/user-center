@@ -10,6 +10,7 @@ import com.wwp.usercenter.common.BusinessException;
 import com.wwp.usercenter.common.ErrorCode;
 import com.wwp.usercenter.service.LoginAttemptService;
 import com.wwp.usercenter.util.EmailUtils;
+import com.wwp.usercenter.util.RedisCounterUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -38,21 +39,13 @@ public class LoginAttemptServiceImpl implements LoginAttemptService {
 
   @Override
   public void recordFailure(String normalizedEmail, String clientIp) {
-    incrementWithTtl(accountFailKey(normalizedEmail));
-    incrementWithTtl(ipFailKey(clientIp));
+    RedisCounterUtils.increment(redisTemplate, accountFailKey(normalizedEmail), LOCK_TTL);
+    RedisCounterUtils.increment(redisTemplate, ipFailKey(clientIp), LOCK_TTL);
   }
 
   @Override
   public void clearAccountFailures(String normalizedEmail) {
     redisTemplate.delete(accountFailKey(normalizedEmail));
-  }
-
-  /** 首次 INCR 返回 1 时设置 TTL；后续失败不会延长锁定窗口。 */
-  private void incrementWithTtl(String key) {
-    Long count = redisTemplate.opsForValue().increment(key);
-    if (count != null && count == 1L) {
-      redisTemplate.expire(key, LOCK_TTL);
-    }
   }
 
   private long currentCount(String key) {

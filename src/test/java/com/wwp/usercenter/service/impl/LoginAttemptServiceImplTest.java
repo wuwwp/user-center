@@ -1,5 +1,7 @@
 package com.wwp.usercenter.service.impl;
 
+import static com.wwp.usercenter.common.constant.LoginGuardConstants.ACCOUNT_FAIL_LIMIT;
+import static com.wwp.usercenter.common.constant.LoginGuardConstants.IP_FAIL_LIMIT;
 import static com.wwp.usercenter.common.constant.LoginGuardConstants.LOCK_TTL;
 import static com.wwp.usercenter.common.constant.LoginGuardConstants.accountFailKey;
 import static com.wwp.usercenter.common.constant.LoginGuardConstants.ipFailKey;
@@ -51,7 +53,8 @@ class LoginAttemptServiceImplTest {
 
   @Test
   void should_reject_when_account_limit_reached() {
-    given(valueOperations.get(accountFailKey(EMAIL))).willReturn("5");
+    given(valueOperations.get(accountFailKey(EMAIL)))
+        .willReturn(String.valueOf(ACCOUNT_FAIL_LIMIT));
 
     assertThatThrownBy(() -> service.ensureLoginAllowed(EMAIL, IP))
         .isInstanceOf(BusinessException.class)
@@ -63,7 +66,7 @@ class LoginAttemptServiceImplTest {
   @Test
   void should_reject_when_ip_limit_reached() {
     given(valueOperations.get(accountFailKey(EMAIL))).willReturn("1");
-    given(valueOperations.get(ipFailKey(IP))).willReturn("50");
+    given(valueOperations.get(ipFailKey(IP))).willReturn(String.valueOf(IP_FAIL_LIMIT));
 
     assertThatThrownBy(() -> service.ensureLoginAllowed(EMAIL, IP))
         .isInstanceOf(BusinessException.class)
