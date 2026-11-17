@@ -66,12 +66,13 @@
 
 - 新会话先读本文件与 `docs/stage-3-handoff.md`，再按需读 `docs/plan.md` §7.3、§8.3 与 §11；设计变更先改文档再改代码
 - 阶段 3 改动认证/账号状态后，按交接文档在 VM Docker 重跑 `AuthFlowIntegrationTest`；本机无 Docker 时跳过
-- Git：阶段 2 在 `stage-2` 分支；`CLAUDE.md` 在主工作区仍有未提交裁剪，需决定提交或回退
+- Git：阶段 2 已合并到 `main`（`700e91b`）；`CLAUDE.md` 在主工作区仍有未提交裁剪，需决定提交或回退
 - 课程文件在 `D:\teach\user-center-spring-security`（本地，不提交仓库）
 - 关键约束：JWT 不含 role；角色变更/改密/登出/封禁/恢复/管理员重置必须自增 `token_version`；敏感配置只放 `application-local.yaml` 或 VM `.env`
 
 ## 待确认 / 阻塞
 
 - 阶段 3 管理员接口尚未实现；范围与开放决策见 `docs/stage-3-handoff.md`
+- 后续优化：用 Lua 将 `INCR + EXPIRE`、验证码 `GET + DEL` 原子化；当前规模接受非原子窗口（见 `docs/decisions.md` §28）
 - SMTP 已实测（QQ 邮箱）；正式上线建议企业邮件 + SPF/DKIM/DMARC
 - 云服务器规格未定，部署阶段前确认；应用镜像与 Nginx/前端静态资源尚未联调（阶段 5/6）
