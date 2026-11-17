@@ -7,8 +7,10 @@ import com.wwp.usercenter.model.param.LoginParam;
 import com.wwp.usercenter.model.param.RegisterParam;
 import com.wwp.usercenter.model.param.ResetPasswordParam;
 import com.wwp.usercenter.model.param.SendEmailCodeParam;
+import com.wwp.usercenter.security.ClientIpResolver;
 import com.wwp.usercenter.security.SecurityUtils;
 import com.wwp.usercenter.service.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
   private final AuthService authService;
+  private final ClientIpResolver clientIpResolver;
 
   @PostMapping("/register")
   public BaseResponse<RegisterResult> register(@Valid @RequestBody RegisterParam param) {
@@ -29,8 +32,9 @@ public class AuthController {
   }
 
   @PostMapping("/login")
-  public BaseResponse<LoginResult> login(@Valid @RequestBody LoginParam param) {
-    return BaseResponse.success(authService.login(param));
+  public BaseResponse<LoginResult> login(
+      @Valid @RequestBody LoginParam param, HttpServletRequest request) {
+    return BaseResponse.success(authService.login(param, clientIpResolver.resolve(request)));
   }
 
   @PostMapping("/logout")
@@ -40,8 +44,9 @@ public class AuthController {
   }
 
   @PostMapping("/email/code")
-  public BaseResponse<Void> sendEmailCode(@Valid @RequestBody SendEmailCodeParam param) {
-    authService.sendEmailCode(param);
+  public BaseResponse<Void> sendEmailCode(
+      @Valid @RequestBody SendEmailCodeParam param, HttpServletRequest request) {
+    authService.sendEmailCode(param, clientIpResolver.resolve(request));
     return BaseResponse.success();
   }
 

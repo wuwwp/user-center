@@ -19,6 +19,8 @@ import com.wwp.usercenter.security.JwtTokenProvider;
 import com.wwp.usercenter.service.AuthService;
 import com.wwp.usercenter.service.EmailDeliveryException;
 import com.wwp.usercenter.service.EmailSender;
+import com.wwp.usercenter.service.LoginAttemptService;
+import com.wwp.usercenter.service.PasswordPolicyService;
 import com.wwp.usercenter.service.UserCredentialService;
 import com.wwp.usercenter.service.VerificationCodeService;
 import com.wwp.usercenter.util.EmailUtils;
@@ -45,6 +47,8 @@ public class AuthServiceImpl implements AuthService {
   private final VerificationCodeService verificationCodeService;
   private final EmailSender emailSender;
   private final UserCredentialService userCredentialService;
+  private final LoginAttemptService loginAttemptService;
+  private final PasswordPolicyService passwordPolicyService;
 
   /** 账号不存在时也执行一次 BCrypt 比对，避免通过响应耗时枚举已注册邮箱。 */
   private final String dummyPasswordHash;
@@ -55,28 +59,39 @@ public class AuthServiceImpl implements AuthService {
       JwtTokenProvider jwtTokenProvider,
       VerificationCodeService verificationCodeService,
       EmailSender emailSender,
-      UserCredentialService userCredentialService) {
+      UserCredentialService userCredentialService,
+      LoginAttemptService loginAttemptService,
+      PasswordPolicyService passwordPolicyService) {
     this.userMapper = userMapper;
     this.passwordEncoder = passwordEncoder;
     this.jwtTokenProvider = jwtTokenProvider;
     this.verificationCodeService = verificationCodeService;
     this.emailSender = emailSender;
     this.userCredentialService = userCredentialService;
+    this.loginAttemptService = loginAttemptService;
+    this.passwordPolicyService = passwordPolicyService;
     this.dummyPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
   }
 
   @Override
-  public LoginResult login(LoginParam param) {
+  public LoginResult login(LoginParam param, String clientIp) {
     String email = EmailUtils.normalize(param.email());
+    // 锁定检查在 BCrypt 之前，锁定时不再消耗 CPU；不存在的账号也走同样的计数路径
+    loginAttemptService.ensureLoginAllowed(email, clientIp);
+
     User user = findByNormalizedEmail(email);
     if (user == null) {
       passwordEncoder.matches(param.password(), dummyPasswordHash);
+      loginAttemptService.recordFailure(email, clientIp);
       throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
     }
     if (!passwordEncoder.matches(param.password(), user.getPasswordHash())) {
+      loginAttemptService.recordFailure(email, clientIp);
       log.warn("login failed, userId={}", user.getId());
       throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
     }
+    // 凭证已通过，账号状态问题不应继续累计失败次数
+    loginAttemptService.clearAccountFailures(email);
     ensureAccountUsable(user);
 
     userCredentialService.recordLogin(user.getId());
@@ -97,6 +112,7 @@ public class AuthServiceImpl implements AuthService {
       throw new BusinessException(ErrorCode.CONFLICT, "邮箱已注册");
     }
 
+    passwordPolicyService.ensureNotWeak(param.password());
     verificationCodeService.verifyAndConsume(email, EmailScene.REGISTER, param.code());
 
     User user = new User();
@@ -118,10 +134,10 @@ public class AuthServiceImpl implements AuthService {
   }
 
   @Override
-  public void sendEmailCode(SendEmailCodeParam param) {
+  public void sendEmailCode(SendEmailCodeParam param, String clientIp) {
     String email = EmailUtils.normalize(param.email());
     User user = findByNormalizedEmail(email);
-    String code = verificationCodeService.issue(email, param.scene());
+    String code = verificationCodeService.issue(email, param.scene(), clientIp);
     if (shouldDeliver(user, param.scene())) {
       try {
         emailSender.sendVerificationCode(email, param.scene(), code);
@@ -149,6 +165,7 @@ public class AuthServiceImpl implements AuthService {
   @Override
   public void resetPassword(ResetPasswordParam param) {
     String email = EmailUtils.normalize(param.email());
+    passwordPolicyService.ensureNotWeak(param.newPassword());
     verificationCodeService.verifyAndConsume(email, EmailScene.RESET, param.code());
     User user = findByNormalizedEmail(email);
     if (user == null) {

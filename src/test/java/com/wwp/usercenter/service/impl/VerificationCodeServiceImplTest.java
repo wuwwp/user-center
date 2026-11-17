@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 
 import com.wwp.usercenter.common.BusinessException;
 import com.wwp.usercenter.common.ErrorCode;
@@ -15,7 +16,10 @@ import com.wwp.usercenter.model.enums.EmailScene;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +34,7 @@ import org.springframework.data.redis.core.ValueOperations;
 class VerificationCodeServiceImplTest {
 
   private static final String EMAIL = "alice@example.com";
+  private static final String CLIENT_IP = "203.0.113.7";
   private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
   @Mock private StringRedisTemplate redisTemplate;
@@ -49,7 +54,7 @@ class VerificationCodeServiceImplTest {
         .willReturn(true);
     given(valueOperations.increment(anyString())).willReturn(1L);
 
-    String code = service.issue(" Alice@Example.com ", EmailScene.REGISTER);
+    String code = service.issue(" Alice@Example.com ", EmailScene.REGISTER, CLIENT_IP);
 
     assertThat(code).matches("\\d{6}");
     ArgumentCaptor<String> key = ArgumentCaptor.forClass(String.class);
@@ -67,9 +72,12 @@ class VerificationCodeServiceImplTest {
         .willReturn(true);
     given(valueOperations.increment(anyString())).willReturn(1L);
 
-    serviceWithClock.issue(EMAIL, EmailScene.REGISTER);
+    serviceWithClock.issue(EMAIL, EmailScene.REGISTER, CLIENT_IP);
 
     then(valueOperations).should().increment(VerificationCodeConstants.dailyKey(EMAIL, "20261117"));
+    then(valueOperations)
+        .should()
+        .increment(VerificationCodeConstants.ipDailyKey(CLIENT_IP, "20261117"));
   }
 
   @Test
@@ -77,7 +85,7 @@ class VerificationCodeServiceImplTest {
     given(valueOperations.setIfAbsent(anyString(), anyString(), eq(Duration.ofSeconds(60))))
         .willReturn(false);
 
-    assertThatThrownBy(() -> service.issue(EMAIL, EmailScene.REGISTER))
+    assertThatThrownBy(() -> service.issue(EMAIL, EmailScene.REGISTER, CLIENT_IP))
         .isInstanceOf(BusinessException.class)
         .extracting("errorCode")
         .isEqualTo(ErrorCode.TOO_MANY_REQUESTS);
@@ -88,26 +96,63 @@ class VerificationCodeServiceImplTest {
   void should_reject_when_daily_limit_reached() {
     given(valueOperations.setIfAbsent(anyString(), anyString(), eq(Duration.ofSeconds(60))))
         .willReturn(true);
-    given(valueOperations.increment(anyString())).willReturn(11L);
+    given(valueOperations.increment(VerificationCodeConstants.dailyKey(EMAIL, today())))
+        .willReturn(11L);
 
-    assertThatThrownBy(() -> service.issue(EMAIL, EmailScene.RESET))
+    assertThatThrownBy(() -> service.issue(EMAIL, EmailScene.RESET, CLIENT_IP))
+        .isInstanceOf(BusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(ErrorCode.TOO_MANY_REQUESTS);
+    then(valueOperations).should(never()).set(anyString(), anyString(), eq(Duration.ofMinutes(5)));
+    then(valueOperations)
+        .should(never())
+        .increment(VerificationCodeConstants.ipDailyKey(CLIENT_IP, today()));
+  }
+
+  @Test
+  void should_reject_when_ip_daily_limit_reached() {
+    given(valueOperations.setIfAbsent(anyString(), anyString(), eq(Duration.ofSeconds(60))))
+        .willReturn(true);
+    given(valueOperations.increment(VerificationCodeConstants.dailyKey(EMAIL, today())))
+        .willReturn(1L);
+    given(valueOperations.increment(VerificationCodeConstants.ipDailyKey(CLIENT_IP, today())))
+        .willReturn(51L);
+
+    assertThatThrownBy(() -> service.issue(EMAIL, EmailScene.REGISTER, CLIENT_IP))
         .isInstanceOf(BusinessException.class)
         .extracting("errorCode")
         .isEqualTo(ErrorCode.TOO_MANY_REQUESTS);
     then(valueOperations).should(never()).set(anyString(), anyString(), eq(Duration.ofMinutes(5)));
   }
 
+  private static String today() {
+    return LocalDate.now(Clock.system(ZONE)).format(DateTimeFormatter.BASIC_ISO_DATE);
+  }
+
   @Test
-  void should_expire_daily_counter_on_first_send() {
+  void should_expire_daily_counters_on_first_send() {
     given(valueOperations.setIfAbsent(anyString(), anyString(), eq(Duration.ofSeconds(60))))
         .willReturn(true);
     given(valueOperations.increment(anyString())).willReturn(1L);
 
-    service.issue(EMAIL, EmailScene.REGISTER);
+    service.issue(EMAIL, EmailScene.REGISTER, CLIENT_IP);
+
+    then(redisTemplate)
+        .should(times(2))
+        .expire(anyString(), eq(VerificationCodeConstants.DAILY_COUNTER_TTL));
+  }
+
+  @Test
+  void should_reset_guess_failure_counter_when_issue() {
+    given(valueOperations.setIfAbsent(anyString(), anyString(), eq(Duration.ofSeconds(60))))
+        .willReturn(true);
+    given(valueOperations.increment(anyString())).willReturn(1L);
+
+    service.issue(EMAIL, EmailScene.REGISTER, CLIENT_IP);
 
     then(redisTemplate)
         .should()
-        .expire(anyString(), eq(VerificationCodeConstants.DAILY_COUNTER_TTL));
+        .delete(VerificationCodeConstants.failKey(EmailScene.REGISTER.getCode(), EMAIL));
   }
 
   @Test
@@ -120,33 +165,54 @@ class VerificationCodeServiceImplTest {
         .extracting("errorCode")
         .isEqualTo(ErrorCode.VERIFY_CODE_EXPIRED);
     then(redisTemplate).should(never()).delete(anyString());
+    then(valueOperations).should(never()).increment(anyString());
   }
 
   @Test
-  void should_fail_with_invalid_and_keep_code_when_mismatch() {
+  void should_fail_with_invalid_and_count_failure_when_mismatch() {
     given(
             valueOperations.get(
                 VerificationCodeConstants.codeKey(EmailScene.REGISTER.getCode(), EMAIL)))
         .willReturn("123456");
+    given(valueOperations.increment(anyString())).willReturn(1L);
 
     assertThatThrownBy(() -> service.verifyAndConsume(EMAIL, EmailScene.REGISTER, "654321"))
         .isInstanceOf(BusinessException.class)
         .extracting("errorCode")
         .isEqualTo(ErrorCode.VERIFY_CODE_INVALID);
+    then(valueOperations)
+        .should()
+        .increment(VerificationCodeConstants.failKey(EmailScene.REGISTER.getCode(), EMAIL));
+    then(redisTemplate)
+        .should()
+        .expire(
+            VerificationCodeConstants.failKey(EmailScene.REGISTER.getCode(), EMAIL),
+            VerificationCodeConstants.CODE_TTL);
     then(redisTemplate).should(never()).delete(anyString());
   }
 
   @Test
-  void should_consume_code_when_match() {
-    given(
-            valueOperations.get(
-                VerificationCodeConstants.codeKey(EmailScene.REGISTER.getCode(), EMAIL)))
-        .willReturn("123456");
+  void should_invalidate_code_when_guess_limit_reached() {
+    String codeKey = VerificationCodeConstants.codeKey(EmailScene.REGISTER.getCode(), EMAIL);
+    String failKey = VerificationCodeConstants.failKey(EmailScene.REGISTER.getCode(), EMAIL);
+    given(valueOperations.get(codeKey)).willReturn("123456");
+    given(valueOperations.increment(failKey)).willReturn(5L);
+
+    assertThatThrownBy(() -> service.verifyAndConsume(EMAIL, EmailScene.REGISTER, "654321"))
+        .isInstanceOf(BusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(ErrorCode.TOO_MANY_REQUESTS);
+    then(redisTemplate).should().delete(List.of(codeKey, failKey));
+  }
+
+  @Test
+  void should_consume_code_and_clear_failures_when_match() {
+    String codeKey = VerificationCodeConstants.codeKey(EmailScene.REGISTER.getCode(), EMAIL);
+    String failKey = VerificationCodeConstants.failKey(EmailScene.REGISTER.getCode(), EMAIL);
+    given(valueOperations.get(codeKey)).willReturn("123456");
 
     service.verifyAndConsume("Alice@Example.com", EmailScene.REGISTER, " 123456 ");
 
-    then(redisTemplate)
-        .should()
-        .delete(VerificationCodeConstants.codeKey(EmailScene.REGISTER.getCode(), EMAIL));
+    then(redisTemplate).should().delete(List.of(codeKey, failKey));
   }
 }

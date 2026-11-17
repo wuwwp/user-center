@@ -8,6 +8,8 @@ public final class VerificationCodeConstants {
   public static final String CODE_KEY_PREFIX = "verify:";
   public static final String COOLDOWN_KEY_PREFIX = "verify:cooldown:";
   public static final String DAILY_KEY_PREFIX = "verify:daily:";
+  public static final String IP_DAILY_KEY_PREFIX = "verify:ip:daily:";
+  public static final String FAIL_KEY_PREFIX = "verify:fail:";
 
   /** 验证码位数；生成宽度与入参正则都从这里派生。 */
   public static final int CODE_LENGTH = 6;
@@ -27,6 +29,12 @@ public final class VerificationCodeConstants {
   /** 同邮箱每日发码上限。 */
   public static final int DAILY_LIMIT = 10;
 
+  /** 同 IP 每日发码上限；高于邮箱维度，避免换邮箱刷同一出口。 */
+  public static final int IP_DAILY_LIMIT = 50;
+
+  /** 单个验证码允许的最大错误次数；达到后作废验证码，必须重新获取。 */
+  public static final int FAIL_LIMIT = 5;
+
   /** 每日限发计数键的过期时间，覆盖跨日边界。 */
   public static final Duration DAILY_COUNTER_TTL = Duration.ofHours(26);
 
@@ -42,5 +50,13 @@ public final class VerificationCodeConstants {
 
   public static String dailyKey(String email, String date) {
     return DAILY_KEY_PREFIX + email + ":" + date;
+  }
+
+  public static String ipDailyKey(String ip, String date) {
+    return IP_DAILY_KEY_PREFIX + ip + ":" + date;
+  }
+
+  public static String failKey(String sceneCode, String email) {
+    return FAIL_KEY_PREFIX + sceneCode + ":" + email;
   }
 }

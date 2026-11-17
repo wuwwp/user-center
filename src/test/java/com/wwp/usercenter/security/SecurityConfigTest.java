@@ -1,14 +1,19 @@
 package com.wwp.usercenter.security;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.wwp.usercenter.common.BusinessException;
+import com.wwp.usercenter.common.ErrorCode;
 import com.wwp.usercenter.config.SecurityConfig;
 import com.wwp.usercenter.controller.AuthController;
 import com.wwp.usercenter.controller.UserController;
@@ -20,6 +25,7 @@ import com.wwp.usercenter.model.enums.DeletedFlag;
 import com.wwp.usercenter.model.enums.UserRole;
 import com.wwp.usercenter.model.enums.UserStatus;
 import com.wwp.usercenter.model.param.LoginParam;
+import com.wwp.usercenter.model.param.SendEmailCodeParam;
 import com.wwp.usercenter.service.AuthService;
 import com.wwp.usercenter.service.UserService;
 import org.junit.jupiter.api.Test;
@@ -31,7 +37,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = {UserController.class, AuthController.class})
-@Import({SecurityConfig.class, RestAuthenticationEntryPoint.class, RestAccessDeniedHandler.class})
+@Import({
+  SecurityConfig.class,
+  RestAuthenticationEntryPoint.class,
+  RestAccessDeniedHandler.class,
+  ClientIpResolver.class
+})
 class SecurityConfigTest {
 
   @Autowired private MockMvc mockMvc;
@@ -155,7 +166,7 @@ class SecurityConfigTest {
 
   @Test
   void should_return_token_when_login_succeeds() throws Exception {
-    given(authService.login(any(LoginParam.class)))
+    given(authService.login(any(LoginParam.class), anyString()))
         .willReturn(new LoginResult("token-value", "Bearer", 7200));
 
     mockMvc
@@ -166,6 +177,62 @@ class SecurityConfigTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value(0))
         .andExpect(jsonPath("$.data.token").value("token-value"));
+  }
+
+  @Test
+  void should_ignore_user_id_supplied_by_client() throws Exception {
+    given(jwtTokenProvider.parse("valid-token")).willReturn(new TokenPayload(7L, 0));
+    given(userMapper.selectAuthStateById(7L)).willReturn(user(7L, UserRole.USER));
+    given(userService.getCurrentUser(7L))
+        .willReturn(new CurrentUserDTO("u7", "用户", "u7@example.com", UserRole.USER));
+
+    mockMvc
+        .perform(get("/api/v1/users/me?userId=999").header("Authorization", "Bearer valid-token"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.userAccount").value("u7"));
+
+    then(userService).should().getCurrentUser(7L);
+  }
+
+  @Test
+  void should_include_security_headers() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/users/me").secure(true))
+        .andExpect(status().isUnauthorized())
+        .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+        .andExpect(header().string("X-Frame-Options", "DENY"))
+        .andExpect(header().string("Referrer-Policy", "no-referrer"))
+        .andExpect(header().exists("Strict-Transport-Security"));
+  }
+
+  @Test
+  void should_return_40102_when_account_locked() throws Exception {
+    willThrow(new BusinessException(ErrorCode.LOGIN_LOCKED))
+        .given(authService)
+        .login(any(LoginParam.class), anyString());
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"admin@user-center.local\",\"password\":\"Test12345678\"}"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value(40102));
+  }
+
+  @Test
+  void should_return_429_when_code_send_rate_limited() throws Exception {
+    willThrow(new BusinessException(ErrorCode.TOO_MANY_REQUESTS))
+        .given(authService)
+        .sendEmailCode(any(SendEmailCodeParam.class), anyString());
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/email/code")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"alice@example.com\",\"scene\":\"register\"}"))
+        .andExpect(status().isTooManyRequests())
+        .andExpect(jsonPath("$.code").value(42900));
   }
 
   private static User user(long id, UserRole role) {

@@ -28,6 +28,8 @@ import com.wwp.usercenter.model.param.SendEmailCodeParam;
 import com.wwp.usercenter.security.JwtTokenProvider;
 import com.wwp.usercenter.service.EmailDeliveryException;
 import com.wwp.usercenter.service.EmailSender;
+import com.wwp.usercenter.service.LoginAttemptService;
+import com.wwp.usercenter.service.PasswordPolicyService;
 import com.wwp.usercenter.service.UserCredentialService;
 import com.wwp.usercenter.service.VerificationCodeService;
 import java.time.Duration;
@@ -47,6 +49,7 @@ class AuthServiceImplTest {
   private static final String PASSWORD = "Passw0rd!";
   private static final String OLD_HASH = "stored-hash";
   private static final String NEW_HASH = "new-hash";
+  private static final String CLIENT_IP = "203.0.113.7";
 
   @Mock private UserMapper userMapper;
   @Mock private PasswordEncoder passwordEncoder;
@@ -54,6 +57,8 @@ class AuthServiceImplTest {
   @Mock private VerificationCodeService verificationCodeService;
   @Mock private EmailSender emailSender;
   @Mock private UserCredentialService userCredentialService;
+  @Mock private LoginAttemptService loginAttemptService;
+  @Mock private PasswordPolicyService passwordPolicyService;
 
   private AuthServiceImpl authService;
 
@@ -67,7 +72,9 @@ class AuthServiceImplTest {
             jwtTokenProvider,
             verificationCodeService,
             emailSender,
-            userCredentialService);
+            userCredentialService,
+            loginAttemptService,
+            passwordPolicyService);
   }
 
   @Test
@@ -78,7 +85,8 @@ class AuthServiceImplTest {
     given(jwtTokenProvider.createToken(user)).willReturn("jwt");
     given(jwtTokenProvider.getExpiration()).willReturn(Duration.ofHours(2));
 
-    LoginResult result = authService.login(new LoginParam(" Alice@Example.com ", PASSWORD));
+    LoginResult result =
+        authService.login(new LoginParam(" Alice@Example.com ", PASSWORD), CLIENT_IP);
 
     assertThat(result.token()).isEqualTo("jwt");
     assertThat(result.tokenType()).isEqualTo("Bearer");
@@ -91,7 +99,7 @@ class AuthServiceImplTest {
     given(userMapper.selectOne(any())).willReturn(activeUser());
     given(passwordEncoder.matches(PASSWORD, OLD_HASH)).willReturn(false);
 
-    assertThatThrownBy(() -> authService.login(new LoginParam(EMAIL, PASSWORD)))
+    assertThatThrownBy(() -> authService.login(new LoginParam(EMAIL, PASSWORD), CLIENT_IP))
         .isInstanceOf(BusinessException.class)
         .extracting("errorCode")
         .isEqualTo(ErrorCode.INVALID_CREDENTIALS);
@@ -102,7 +110,7 @@ class AuthServiceImplTest {
   void should_still_hash_when_account_absent_to_prevent_enumeration() {
     given(userMapper.selectOne(any())).willReturn(null);
 
-    assertThatThrownBy(() -> authService.login(new LoginParam(EMAIL, PASSWORD)))
+    assertThatThrownBy(() -> authService.login(new LoginParam(EMAIL, PASSWORD), CLIENT_IP))
         .isInstanceOf(BusinessException.class)
         .extracting("errorCode")
         .isEqualTo(ErrorCode.INVALID_CREDENTIALS);
@@ -116,7 +124,7 @@ class AuthServiceImplTest {
     given(userMapper.selectOne(any())).willReturn(user);
     given(passwordEncoder.matches(PASSWORD, OLD_HASH)).willReturn(true);
 
-    assertThatThrownBy(() -> authService.login(new LoginParam(EMAIL, PASSWORD)))
+    assertThatThrownBy(() -> authService.login(new LoginParam(EMAIL, PASSWORD), CLIENT_IP))
         .isInstanceOf(BusinessException.class)
         .extracting("errorCode")
         .isEqualTo(ErrorCode.ACCOUNT_DELETED);
@@ -129,7 +137,7 @@ class AuthServiceImplTest {
     given(userMapper.selectOne(any())).willReturn(user);
     given(passwordEncoder.matches(PASSWORD, OLD_HASH)).willReturn(true);
 
-    assertThatThrownBy(() -> authService.login(new LoginParam(EMAIL, PASSWORD)))
+    assertThatThrownBy(() -> authService.login(new LoginParam(EMAIL, PASSWORD), CLIENT_IP))
         .isInstanceOf(BusinessException.class)
         .extracting("errorCode")
         .isEqualTo(ErrorCode.ACCOUNT_BANNED);
@@ -192,9 +200,9 @@ class AuthServiceImplTest {
   @Test
   void should_send_code_when_reset_scene_and_account_active() {
     given(userMapper.selectOne(any())).willReturn(activeUser());
-    given(verificationCodeService.issue(EMAIL, EmailScene.RESET)).willReturn("123456");
+    given(verificationCodeService.issue(EMAIL, EmailScene.RESET, CLIENT_IP)).willReturn("123456");
 
-    authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.RESET));
+    authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.RESET), CLIENT_IP);
 
     then(emailSender).should().sendVerificationCode(EMAIL, EmailScene.RESET, "123456");
   }
@@ -202,12 +210,13 @@ class AuthServiceImplTest {
   @Test
   void should_keep_uniform_response_when_mail_transport_fails() {
     given(userMapper.selectOne(any())).willReturn(activeUser());
-    given(verificationCodeService.issue(EMAIL, EmailScene.RESET)).willReturn("123456");
+    given(verificationCodeService.issue(EMAIL, EmailScene.RESET, CLIENT_IP)).willReturn("123456");
     willThrow(new EmailDeliveryException("smtp down", null))
         .given(emailSender)
         .sendVerificationCode(EMAIL, EmailScene.RESET, "123456");
 
-    assertThatCode(() -> authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.RESET)))
+    assertThatCode(() ->
+            authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.RESET), CLIENT_IP))
         .doesNotThrowAnyException();
   }
 
@@ -216,9 +225,9 @@ class AuthServiceImplTest {
     User user = activeUser();
     user.setStatus(UserStatus.BANNED);
     given(userMapper.selectOne(any())).willReturn(user);
-    given(verificationCodeService.issue(EMAIL, EmailScene.RESET)).willReturn("123456");
+    given(verificationCodeService.issue(EMAIL, EmailScene.RESET, CLIENT_IP)).willReturn("123456");
 
-    authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.RESET));
+    authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.RESET), CLIENT_IP);
 
     then(emailSender).shouldHaveNoInteractions();
   }
@@ -240,9 +249,9 @@ class AuthServiceImplTest {
   @Test
   void should_not_send_code_but_return_success_when_account_absent() {
     given(userMapper.selectOne(any())).willReturn(null);
-    given(verificationCodeService.issue(EMAIL, EmailScene.RESET)).willReturn("123456");
+    given(verificationCodeService.issue(EMAIL, EmailScene.RESET, CLIENT_IP)).willReturn("123456");
 
-    authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.RESET));
+    authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.RESET), CLIENT_IP);
 
     then(emailSender).shouldHaveNoInteractions();
   }
@@ -250,9 +259,10 @@ class AuthServiceImplTest {
   @Test
   void should_not_send_register_code_when_email_already_registered() {
     given(userMapper.selectOne(any())).willReturn(activeUser());
-    given(verificationCodeService.issue(EMAIL, EmailScene.REGISTER)).willReturn("123456");
+    given(verificationCodeService.issue(EMAIL, EmailScene.REGISTER, CLIENT_IP))
+        .willReturn("123456");
 
-    authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.REGISTER));
+    authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.REGISTER), CLIENT_IP);
 
     then(emailSender).shouldHaveNoInteractions();
   }
@@ -285,6 +295,97 @@ class AuthServiceImplTest {
         .isInstanceOf(BusinessException.class)
         .extracting("errorCode")
         .isEqualTo(ErrorCode.ACCOUNT_DELETED);
+    then(userCredentialService).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void should_reject_login_before_password_check_when_locked() {
+    willThrow(new BusinessException(ErrorCode.LOGIN_LOCKED))
+        .given(loginAttemptService)
+        .ensureLoginAllowed(EMAIL, CLIENT_IP);
+
+    assertThatThrownBy(() -> authService.login(new LoginParam(EMAIL, PASSWORD), CLIENT_IP))
+        .isInstanceOf(BusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(ErrorCode.LOGIN_LOCKED);
+    then(userMapper).shouldHaveNoInteractions();
+    then(passwordEncoder).should(never()).matches(anyString(), anyString());
+  }
+
+  @Test
+  void should_record_failure_when_password_wrong() {
+    given(userMapper.selectOne(any())).willReturn(activeUser());
+    given(passwordEncoder.matches(PASSWORD, OLD_HASH)).willReturn(false);
+
+    assertThatThrownBy(() -> authService.login(new LoginParam(EMAIL, PASSWORD), CLIENT_IP))
+        .isInstanceOf(BusinessException.class);
+
+    then(loginAttemptService).should().recordFailure(EMAIL, CLIENT_IP);
+  }
+
+  @Test
+  void should_record_failure_when_account_absent() {
+    given(userMapper.selectOne(any())).willReturn(null);
+
+    assertThatThrownBy(() -> authService.login(new LoginParam(EMAIL, PASSWORD), CLIENT_IP))
+        .isInstanceOf(BusinessException.class);
+
+    then(loginAttemptService).should().recordFailure(EMAIL, CLIENT_IP);
+  }
+
+  @Test
+  void should_clear_account_failures_on_successful_login() {
+    User user = activeUser();
+    given(userMapper.selectOne(any())).willReturn(user);
+    given(passwordEncoder.matches(PASSWORD, OLD_HASH)).willReturn(true);
+    given(jwtTokenProvider.createToken(user)).willReturn("jwt");
+    given(jwtTokenProvider.getExpiration()).willReturn(Duration.ofHours(2));
+
+    authService.login(new LoginParam(EMAIL, PASSWORD), CLIENT_IP);
+
+    then(loginAttemptService).should().clearAccountFailures(EMAIL);
+  }
+
+  @Test
+  void should_not_apply_weak_password_policy_on_login() {
+    User user = activeUser();
+    given(userMapper.selectOne(any())).willReturn(user);
+    given(passwordEncoder.matches(PASSWORD, OLD_HASH)).willReturn(true);
+    given(jwtTokenProvider.createToken(user)).willReturn("jwt");
+    given(jwtTokenProvider.getExpiration()).willReturn(Duration.ofHours(2));
+
+    authService.login(new LoginParam(EMAIL, PASSWORD), CLIENT_IP);
+
+    then(passwordPolicyService).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void should_reject_register_when_password_weak_without_consuming_code() {
+    given(userMapper.selectOne(any())).willReturn(null);
+    willThrow(new BusinessException(ErrorCode.PARAM_INVALID))
+        .given(passwordPolicyService)
+        .ensureNotWeak(PASSWORD);
+
+    assertThatThrownBy(() -> authService.register(new RegisterParam(EMAIL, "123456", PASSWORD)))
+        .isInstanceOf(BusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(ErrorCode.PARAM_INVALID);
+    then(verificationCodeService).shouldHaveNoInteractions();
+    then(userMapper).should(never()).insert(any(User.class));
+  }
+
+  @Test
+  void should_reject_reset_when_password_weak_without_consuming_code() {
+    willThrow(new BusinessException(ErrorCode.PARAM_INVALID))
+        .given(passwordPolicyService)
+        .ensureNotWeak(PASSWORD);
+
+    assertThatThrownBy(
+            () -> authService.resetPassword(new ResetPasswordParam(EMAIL, "654321", PASSWORD)))
+        .isInstanceOf(BusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(ErrorCode.PARAM_INVALID);
+    then(verificationCodeService).shouldHaveNoInteractions();
     then(userCredentialService).shouldHaveNoInteractions();
   }
 

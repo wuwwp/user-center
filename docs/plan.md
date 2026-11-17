@@ -5,7 +5,7 @@
 | 项目 | 内容 |
 |---|---|
 | 文档名称 | 用户中心（统一认证服务）设计文档 |
-| 文档版本 | v0.15 |
+| 文档版本 | v0.16 |
 | 文档状态 | 评审中 |
 | 编写日期 | 2026-11-13 |
 | 适用范围 | user-center 服务与配套 Web 前端的设计、开发、测试与部署 |
@@ -30,6 +30,7 @@
 | v0.13 | 2026-11-16 | — | SMTP 接入：log/smtp 双实现；邮件失败只记日志、不改变响应；生产默认 smtp 且缺配置启动失败 |
 | v0.14 | 2026-11-16 | — | 封禁账号不得自助重置密码；补 Testcontainers 集成测试与 JaCoCo 行/分支覆盖率 70% 门槛 |
 | v0.15 | 2026-11-16 | — | 日志邮件实现仅在非 prod 加载；生产误配 log 模式直接启动失败 |
+| v0.16 | 2026-11-17 | — | 阶段 2：登录失败账号/IP 双维度锁定、发码 IP 限频、弱密码字典、验证码失败次数、可信代理 IP 解析与安全测试矩阵 |
 
 ## 1. 引言
 
@@ -275,20 +276,24 @@ create table `user` (
 ### 8.2 账号与密码
 
 - 密码 BCrypt（cost 10+），永不返回、不写日志
-- 密码策略：8~64 位，至少包含字母与数字；校验 Top 1000 弱密码字典
+- 密码策略：8~64 位，至少包含字母与数字；校验 Top 1000 弱密码字典（注册、重置、改密生效，登录不生效）；字典与输入统一转小写并还原常见 leet 替换后比较，命中返回 `PARAM_INVALID`，启动时加载为不可变集合
+- 弱密码字典来源为 SecLists（MIT）`10k-most-common.txt` 前 1000 条，文件与许可说明放 `src/main/resources/security/`
 - 登录、发码、验证码重置统一响应，避免用户枚举；注册冲突明确返回 409，接受注册环节的枚举（理由见 decisions.md §25）
 - 登录流程对不存在的账号执行一次固定哈希的 BCrypt 比对，抹平计算路径差异；不依赖随机延时
 - 事务边界：密码校验（BCrypt）在事务外执行，事务只包住 `last_login_time` 更新等短写入，避免哈希计算占用数据库连接
-- 登录失败 5 次锁定 15 分钟；验证码同邮箱 60 秒限发、每日 10 次
-- 验证码：6 位数字，有效期 5 分钟，一次性使用（校验通过即删除）
+- 登录失败锁定：账号维度 `login:fail:account:{email}` 5 次 / 15 分钟；IP 维度 `login:fail:ip:{ip}` 50 次 / 15 分钟。不存在账号与密码错误走同一计数路径；成功后清除账号维度计数，IP 维度保留。锁定返回 40102
+- 验证码：6 位数字，有效期 5 分钟，一次性使用（校验通过即删除验证码与失败计数）
 - 验证码按业务场景隔离：`verify:register:{email}`、`verify:reset:{email}`、`verify:recover:{email}`，校验时严格匹配场景，禁止跨场景复用
-- 发码限频：同邮箱 60 秒一次（`verify:cooldown:{email}`），每日 10 次（`verify:daily:{email}:{date}`）
+- 发码限频：同邮箱 60 秒一次（`verify:cooldown:{email}`），同邮箱每日 10 次（`verify:daily:{email}:{date}`），同 IP 每日 50 次（`verify:ip:daily:{ip}:{date}`）
+- 验证码失败次数：`verify:fail:{scene}:{email}` 最多 5 次，达到后作废验证码并要求重新发码；重新发码时清除失败计数。错误次数达到上限返回 42900
 - 时间与时区：业务日期按 `user-center.time-zone`（默认 `Asia/Shanghai`）计算，通过注入 `Clock` 使用；容器显式设置 `TZ=Asia/Shanghai`，不依赖镜像默认 UTC
 - SQL 分层：简单单表 CRUD 继续用 Wrapper；`token_version` 原子自增等需要数据库表达式的写入放 `UserMapper.xml`；service 不拼 SQL
 - 邮件发送：`user-center.mail.mode=log|smtp` 二选一；SMTP 故障只记录 error 日志、不改变对外响应，避免「可投递/不可投递」差异变成枚举信号；生产默认 smtp，缺少配置时启动失败；日志实现用 `@Profile("!prod")` 排除，生产误配 log 同样启动失败
 - 封禁账号：不允许自助重置密码；重置场景不发码，重置接口在验证码通过后返回 `ACCOUNT_BANNED`，需管理员解封后才能恢复
 - 发码接口统一返回成功，不暴露邮箱是否注册；未注册邮箱照常限频与写码，但不投递，后续校验自然失败
 - 登录失败、发码同时做账号维度与 IP 维度计数；客户端 IP 仅信任来自 Nginx 的 `X-Forwarded-For`，且只取可信代理追加的最后一跳
+- 客户端 IP 解析：默认关闭 `user-center.security.trust-forwarded-for`，使用 `getRemoteAddr()`；生产开启后只读取 `X-Forwarded-For` 的最后一跳并做字符校验。开启前提是后端端口不直接对公网暴露，Nginx 使用 `$proxy_add_x_forwarded_for` 追加真实对端地址
+- 反向代理：生产使用 `server.forward-headers-strategy=native`，由 Tomcat 修正 scheme/host 以正常输出 HSTS；不使用 `framework` 策略，因为它会隐藏原始转发头
 
 ### 8.3 权限
 

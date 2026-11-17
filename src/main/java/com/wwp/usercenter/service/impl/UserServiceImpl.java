@@ -6,6 +6,7 @@ import com.wwp.usercenter.mapper.UserMapper;
 import com.wwp.usercenter.model.dto.CurrentUserDTO;
 import com.wwp.usercenter.model.entity.User;
 import com.wwp.usercenter.model.param.ChangePasswordParam;
+import com.wwp.usercenter.service.PasswordPolicyService;
 import com.wwp.usercenter.service.UserCredentialService;
 import com.wwp.usercenter.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class UserServiceImpl implements UserService {
   private final UserMapper userMapper;
   private final PasswordEncoder passwordEncoder;
   private final UserCredentialService userCredentialService;
+  private final PasswordPolicyService passwordPolicyService;
 
   @Override
   public CurrentUserDTO getCurrentUser(Long userId) {
@@ -39,6 +41,7 @@ public class UserServiceImpl implements UserService {
     if (param.oldPassword().equals(param.newPassword())) {
       throw new BusinessException(ErrorCode.PARAM_INVALID, "新密码不能与原密码相同");
     }
+    passwordPolicyService.ensureNotWeak(param.newPassword());
 
     // BCrypt 编码在事务外完成，事务只包住一次更新
     userCredentialService.updatePassword(user.getId(), passwordEncoder.encode(param.newPassword()));

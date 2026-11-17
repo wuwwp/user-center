@@ -28,6 +28,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -160,6 +161,203 @@ class AuthFlowIntegrationTest {
                         .formatted(email)))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.code").value(40103));
+  }
+
+  @Test
+  void should_lock_account_after_five_failed_logins() throws Exception {
+    register("ItPassw0rd1");
+
+    for (int i = 0; i < 5; i++) {
+      expectLogin("ItWrongPass1", 40101);
+    }
+
+    // 第 6 次即使密码正确也被锁定，响应不区分账号是否存在
+    expectLogin("ItPassw0rd1", 40102);
+  }
+
+  @Test
+  void should_clear_account_failures_after_successful_login() throws Exception {
+    register("ItPassw0rd1");
+    for (int i = 0; i < 4; i++) {
+      expectLogin("ItWrongPass1", 40101);
+    }
+    login("ItPassw0rd1");
+
+    for (int i = 0; i < 4; i++) {
+      expectLogin("ItWrongPass1", 40101);
+    }
+  }
+
+  @Test
+  void should_lock_ip_after_many_failures_across_accounts() throws Exception {
+    for (int i = 0; i < 50; i++) {
+      String other = "ip_" + UUID.randomUUID() + "@example.com";
+      attemptLogin(other, "ItWrongPass1")
+          .andExpect(status().isUnauthorized())
+          .andExpect(jsonPath("$.code").value(40101));
+    }
+
+    attemptLogin(email, "ItWrongPass1")
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value(40102));
+  }
+
+  @Test
+  void should_reject_weak_password_without_consuming_code() throws Exception {
+    String registerCode = requestCode(EmailScene.REGISTER);
+    mockMvc
+        .perform(
+            post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"email":"%s","code":"%s","password":"Password1"}
+                    """
+                        .formatted(email, registerCode)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value(40000));
+
+    // 弱密码在校验验证码之前被拒绝，验证码仍可用于正常注册
+    mockMvc
+        .perform(
+            post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"email":"%s","code":"%s","password":"ItPassw0rd1"}
+                    """
+                        .formatted(email, registerCode)))
+        .andExpect(status().isOk());
+
+    String resetCode = requestCode(EmailScene.RESET);
+    mockMvc
+        .perform(
+            post("/api/v1/auth/password/reset")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"email":"%s","code":"%s","newPassword":"P@ssw0rd"}
+                    """
+                        .formatted(email, resetCode)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value(40000));
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/password/reset")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"email":"%s","code":"%s","newPassword":"ItPassw0rd2"}
+                    """
+                        .formatted(email, resetCode)))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void should_invalidate_code_after_five_wrong_guesses() throws Exception {
+    register("ItPassw0rd1");
+    String resetCode = requestCode(EmailScene.RESET);
+    String wrongCode = "000000".equals(resetCode) ? "111111" : "000000";
+
+    for (int i = 0; i < 4; i++) {
+      expectResetCode(wrongCode, 40001);
+    }
+    expectResetCode(wrongCode, 42900);
+
+    // 达到上限后验证码被作废，正确验证码也只能得到“已过期”
+    expectResetCode(resetCode, 40002);
+  }
+
+  @Test
+  void should_reject_token_after_version_or_status_change() throws Exception {
+    register("ItPassw0rd1");
+    String token = login("ItPassw0rd1");
+    mockMvc
+        .perform(get("/api/v1/users/me").header("Authorization", "Bearer " + token))
+        .andExpect(status().isOk());
+
+    User user = userMapper.selectOne(Wrappers.<User>lambdaQuery().eq(User::getEmail, email));
+    userMapper.incrementTokenVersion(user.getId());
+    mockMvc
+        .perform(get("/api/v1/users/me").header("Authorization", "Bearer " + token))
+        .andExpect(status().isUnauthorized());
+
+    String tokenAfterChange = login("ItPassw0rd1");
+    User banned = new User();
+    banned.setId(user.getId());
+    banned.setStatus(UserStatus.BANNED);
+    userMapper.updateById(banned);
+    mockMvc
+        .perform(get("/api/v1/users/me").header("Authorization", "Bearer " + tokenAfterChange))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void should_return_identical_login_error_for_unknown_account_and_wrong_password()
+      throws Exception {
+    MvcResult unknown =
+        attemptLogin("unknown_" + UUID.randomUUID() + "@example.com", "ItWrongPass1")
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value(40101))
+            .andReturn();
+
+    register("ItPassw0rd1");
+    MvcResult wrongPassword =
+        attemptLogin(email, "ItWrongPass1")
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value(40101))
+            .andReturn();
+
+    String unknownMessage = JsonPath.read(unknown.getResponse().getContentAsString(), "$.message");
+    String wrongMessage =
+        JsonPath.read(wrongPassword.getResponse().getContentAsString(), "$.message");
+    assertThat(unknownMessage).isEqualTo(wrongMessage);
+  }
+
+  private void register(String password) throws Exception {
+    String code = requestCode(EmailScene.REGISTER);
+    mockMvc
+        .perform(
+            post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"email":"%s","code":"%s","password":"%s"}
+                    """
+                        .formatted(email, code, password)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value(0));
+  }
+
+  private ResultActions attemptLogin(String targetEmail, String password) throws Exception {
+    return mockMvc.perform(
+        post("/api/v1/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(
+                """
+                {"email":"%s","password":"%s"}
+                """
+                    .formatted(targetEmail, password)));
+  }
+
+  private void expectLogin(String password, int code) throws Exception {
+    attemptLogin(email, password)
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value(code));
+  }
+
+  private void expectResetCode(String code, int expectedCode) throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/auth/password/reset")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"email":"%s","code":"%s","newPassword":"ItPassw0rd2"}
+                    """
+                        .formatted(email, code)))
+        .andExpect(jsonPath("$.code").value(expectedCode));
   }
 
   /** 测试里跳过 60 秒冷却；冷却本身由 VerificationCodeServiceImplTest 覆盖。 */

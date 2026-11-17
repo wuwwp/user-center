@@ -1,6 +1,7 @@
 server:
-  # 仅在可信反向代理（Nginx）之后启用，避免直接暴露时被伪造 X-Forwarded-For
-  forward-headers-strategy: framework
+  # 由 Tomcat 根据 X-Forwarded-Proto/Host 修正 scheme，保证 HSTS 等安全头正常输出；
+  # 客户端 IP 仍由 ClientIpResolver 只取 X-Forwarded-For 最后一跳
+  forward-headers-strategy: native
 
 springdoc:
   api-docs:
@@ -13,6 +14,9 @@ logging:
     root: info
 
 user-center:
+  # 后端端口只应经 Nginx 暴露；开启后只信任 Nginx 追加的 X-Forwarded-For 最后一跳
+  security:
+    trust-forwarded-for: true
   mail:
     # 生产只允许真实发信；log 实现已用 @Profile("!prod") 排除，误配 log 会启动失败
     mode: ${MAIL_MODE:smtp}

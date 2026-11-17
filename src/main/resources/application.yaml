@@ -63,6 +63,9 @@ user-center:
     from-name: ${MAIL_FROM_NAME:用户中心}
   # 每日限发等日期逻辑使用的时区，不依赖 JVM 默认时区
   time-zone: ${USER_CENTER_TIME_ZONE:Asia/Shanghai}
+  security:
+    # 只有经可信 Nginx 暴露时才开启；开启后只取 X-Forwarded-For 最后一跳
+    trust-forwarded-for: ${TRUST_FORWARDED_FOR:false}
 
 security:
   jwt:

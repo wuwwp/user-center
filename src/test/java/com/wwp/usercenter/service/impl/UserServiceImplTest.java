@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 
 import com.wwp.usercenter.common.BusinessException;
 import com.wwp.usercenter.common.ErrorCode;
@@ -13,6 +14,7 @@ import com.wwp.usercenter.model.enums.DeletedFlag;
 import com.wwp.usercenter.model.enums.UserRole;
 import com.wwp.usercenter.model.enums.UserStatus;
 import com.wwp.usercenter.model.param.ChangePasswordParam;
+import com.wwp.usercenter.service.PasswordPolicyService;
 import com.wwp.usercenter.service.UserCredentialService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +34,7 @@ class UserServiceImplTest {
   @Mock private UserMapper userMapper;
   @Mock private PasswordEncoder passwordEncoder;
   @Mock private UserCredentialService userCredentialService;
+  @Mock private PasswordPolicyService passwordPolicyService;
   @InjectMocks private UserServiceImpl userService;
 
   @Test
@@ -65,6 +68,22 @@ class UserServiceImplTest {
 
     assertThatThrownBy(() ->
             userService.changePassword(9L, new ChangePasswordParam(OLD_PASSWORD, OLD_PASSWORD)))
+        .isInstanceOf(BusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(ErrorCode.PARAM_INVALID);
+    then(userCredentialService).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void should_reject_when_new_password_weak() {
+    given(userMapper.selectById(9L)).willReturn(activeUser());
+    given(passwordEncoder.matches(OLD_PASSWORD, OLD_HASH)).willReturn(true);
+    willThrow(new BusinessException(ErrorCode.PARAM_INVALID))
+        .given(passwordPolicyService)
+        .ensureNotWeak(NEW_PASSWORD);
+
+    assertThatThrownBy(() ->
+            userService.changePassword(9L, new ChangePasswordParam(OLD_PASSWORD, NEW_PASSWORD)))
         .isInstanceOf(BusinessException.class)
         .extracting("errorCode")
         .isEqualTo(ErrorCode.PARAM_INVALID);
