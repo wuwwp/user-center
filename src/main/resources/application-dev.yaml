@@ -1,3 +1,8 @@
+spring:
+  flyway:
+    # 开发环境额外加载可重复迁移，创建默认管理员；生产只跑 db/migration
+    locations: classpath:db/migration,classpath:db/dev
+
 logging:
   level:
     com.wwp.usercenter: debug

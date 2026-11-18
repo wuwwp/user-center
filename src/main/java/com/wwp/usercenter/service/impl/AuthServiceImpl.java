@@ -17,8 +17,7 @@ import com.wwp.usercenter.model.param.ResetPasswordParam;
 import com.wwp.usercenter.model.param.SendEmailCodeParam;
 import com.wwp.usercenter.security.JwtTokenProvider;
 import com.wwp.usercenter.service.AuthService;
-import com.wwp.usercenter.service.EmailDeliveryException;
-import com.wwp.usercenter.service.EmailSender;
+import com.wwp.usercenter.service.EmailDispatchService;
 import com.wwp.usercenter.service.LoginAttemptService;
 import com.wwp.usercenter.service.PasswordPolicyService;
 import com.wwp.usercenter.service.UserCredentialService;
@@ -45,7 +44,7 @@ public class AuthServiceImpl implements AuthService {
   private final PasswordEncoder passwordEncoder;
   private final JwtTokenProvider jwtTokenProvider;
   private final VerificationCodeService verificationCodeService;
-  private final EmailSender emailSender;
+  private final EmailDispatchService emailDispatchService;
   private final UserCredentialService userCredentialService;
   private final LoginAttemptService loginAttemptService;
   private final PasswordPolicyService passwordPolicyService;
@@ -58,7 +57,7 @@ public class AuthServiceImpl implements AuthService {
       PasswordEncoder passwordEncoder,
       JwtTokenProvider jwtTokenProvider,
       VerificationCodeService verificationCodeService,
-      EmailSender emailSender,
+      EmailDispatchService emailDispatchService,
       UserCredentialService userCredentialService,
       LoginAttemptService loginAttemptService,
       PasswordPolicyService passwordPolicyService) {
@@ -66,7 +65,7 @@ public class AuthServiceImpl implements AuthService {
     this.passwordEncoder = passwordEncoder;
     this.jwtTokenProvider = jwtTokenProvider;
     this.verificationCodeService = verificationCodeService;
-    this.emailSender = emailSender;
+    this.emailDispatchService = emailDispatchService;
     this.userCredentialService = userCredentialService;
     this.loginAttemptService = loginAttemptService;
     this.passwordPolicyService = passwordPolicyService;
@@ -139,16 +138,8 @@ public class AuthServiceImpl implements AuthService {
     User user = findByNormalizedEmail(email);
     String code = verificationCodeService.issue(email, param.scene(), clientIp);
     if (shouldDeliver(user, param.scene())) {
-      try {
-        emailSender.sendVerificationCode(email, param.scene(), code);
-      } catch (EmailDeliveryException exception) {
-        // 邮件故障不能改变对外响应，否则“可投递/不可投递”的差异会变成用户枚举信号
-        log.error(
-            "send verification code failed, scene={}, email={}",
-            param.scene().getCode(),
-            EmailUtils.mask(email),
-            exception);
-      }
+      // 异步投递；失败由 dispatch 记录日志，不改变对外响应
+      emailDispatchService.dispatch(email, param.scene(), code);
     }
     log.info(
         "verification code issued, scene={}, email={}",

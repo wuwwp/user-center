@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 
+import com.wwp.usercenter.config.MailProperties;
 import com.wwp.usercenter.model.enums.EmailScene;
 import com.wwp.usercenter.service.EmailDeliveryException;
 import jakarta.mail.Session;
@@ -30,7 +31,7 @@ class SmtpEmailSenderTest {
 
   @BeforeEach
   void setUp() {
-    sender = new SmtpEmailSender(mailSender, "no-reply@example.com", "用户中心");
+    sender = new SmtpEmailSender(mailSender, new MailProperties("no-reply@example.com", "用户中心"));
   }
 
   @Test
@@ -61,7 +62,7 @@ class SmtpEmailSenderTest {
 
   @Test
   void should_reject_when_from_is_missing() {
-    assertThatThrownBy(() -> new SmtpEmailSender(mailSender, " ", "用户中心"))
+    assertThatThrownBy(() -> new SmtpEmailSender(mailSender, new MailProperties(" ", "用户中心")))
         .isInstanceOf(IllegalStateException.class);
   }
 }

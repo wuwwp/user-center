@@ -12,14 +12,18 @@
 - 弱密码 Top 1000 字典在注册、重置、改密生效；登录不校验历史弱密码。
 - 客户端 IP 只读 `getRemoteAddr()`；生产由 Tomcat RemoteIpValve 解析转发链，应用层不解析 XFF。
 - 安全用例覆盖：令牌版本/状态失效、IDOR、用户枚举一致性、安全响应头、锁定与限流错误码。
-- 本机 `./mvnw verify`：94 个用例（86 通过 + 8 个 Testcontainers 跳过），行 87.7% / 分支 80.6%。
+- 错误响应用 RFC 9457 `ProblemDetail`，业务码在 `code` 扩展字段；成功响应直接返回 DTO，不再有统一 envelope。
+- JWT 固定 HS256 并校验 issuer/audience；Bearer 前缀大小写不敏感。
+- Flyway 管理表结构；开发种子在 `db/dev`，生产不创建默认管理员。
+- 邮件由有界线程池异步投递，请求线程不再等待 SMTP。
+- 本机 `./mvnw verify`：94 个单元/slice 用例通过 + 8 个 Testcontainers 用例由 Failsafe 执行（无 Docker 时跳过）；覆盖率门槛 80%。
 - VM Docker 集成测试（2026-11-17）：`AuthFlowIntegrationTest` 8 个用例全部通过，`BUILD SUCCESS`。
 
 ## 2. 当前 Git / 工作区状态
 
-- 阶段 2 在 `stage-2` 分支（从本地 `main` 的 `975f0b1` 拉出），完成后合回 `main` 并推送。
+- 阶段 2 与 2026-11-18 生产化改动已合并到 `main`（提交见 `git log`）。
 - 主工作区的 `CLAUDE.md` 仍有未提交裁剪，需决定提交或回退。
-- `docs/decisions.md` 是本地文件（gitignore），阶段 2 取舍见 §27，不提交。
+- `docs/decisions.md` 是本地文件（gitignore），阶段 2/生产化取舍见 §27、§30，不提交。
 - 应用当前未运行；VM 上 MySQL/Redis 容器保持运行。
 
 ## 3. 阶段 3 范围
@@ -75,11 +79,13 @@
 
 - 账号状态：`User.isDeleted()` / `isBanned()` / `isActive()`。
 - 密码哈希：`UserCredentialService.updatePassword` 已原子自增 `token_version`，不要另写一条普通 update。
-- 认证查询：`UserMapper.selectAuthStateById` 只取认证列；管理列表不要复用该投影。
-- 401/403 响应：`SecurityErrorResponseWriter`；业务异常交给 `GlobalExceptionHandler`。
+- 认证查询：`UserMapper.selectAuthStateById` 只取认证列；当前用户查询用 `selectCurrentUserById`，管理列表不要复用认证投影。
+- 401/403 响应：`SecurityErrorResponseWriter` 输出 ProblemDetail，401 带 `WWW-Authenticate: Bearer`；业务异常交给 `GlobalExceptionHandler`。
 - 客户端 IP：`ClientIpResolver`；管理接口不需要额外限流，但登录入口已覆盖撞库。
 - 日志：不打印密码、令牌、完整邮箱；管理员操作记录操作者 ID 与目标 ID。
 - SQL：简单 CRUD 用 Wrapper；状态+版本原子更新放 XML；禁止 `setSql`、`apply`、字符串拼接。
+- 表结构变更：只加 Flyway 新版本，不改已执行脚本；管理员列表索引/字段变更写 `V2__...sql`。
+- 邮件：业务层调用 `EmailDispatchService.dispatch`，不要直接同步调用 `EmailSender`。
 - 弱密码字典只用于用户设置密码，不要用于管理员生成的随机密码。
 
 ## 6. 测试与命令
@@ -98,8 +104,10 @@ docker run --rm --network host \
   -v uc-m2:/root/.m2 -v ~/uc-it:/app -w /app \
   -e TESTCONTAINERS_HOST_OVERRIDE=127.0.0.1 \
   maven:3.9-eclipse-temurin-21 \
-  mvn -B -Dtest=AuthFlowIntegrationTest test
+  mvn -B -Dit.test=AuthFlowIntegrationTest verify
 ```
+
+集成测试已交给 Failsafe；用 `-Dit.test` 指定类，`verify` 才会触发 `integration-test` 阶段。
 
 阶段 3 建议新增 `AdminFlowIntegrationTest`，覆盖：管理员登录 → 分页查询 → 封禁 → 被禁用户旧令牌 401 / 登录 40103 → 解封 → 登录恢复 → 管理员重置密码 → 旧密码 40101、新密码可登录。
 

@@ -1,7 +1,6 @@
 package com.wwp.usercenter.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -26,8 +25,7 @@ import com.wwp.usercenter.model.param.RegisterParam;
 import com.wwp.usercenter.model.param.ResetPasswordParam;
 import com.wwp.usercenter.model.param.SendEmailCodeParam;
 import com.wwp.usercenter.security.JwtTokenProvider;
-import com.wwp.usercenter.service.EmailDeliveryException;
-import com.wwp.usercenter.service.EmailSender;
+import com.wwp.usercenter.service.EmailDispatchService;
 import com.wwp.usercenter.service.LoginAttemptService;
 import com.wwp.usercenter.service.PasswordPolicyService;
 import com.wwp.usercenter.service.UserCredentialService;
@@ -55,7 +53,7 @@ class AuthServiceImplTest {
   @Mock private PasswordEncoder passwordEncoder;
   @Mock private JwtTokenProvider jwtTokenProvider;
   @Mock private VerificationCodeService verificationCodeService;
-  @Mock private EmailSender emailSender;
+  @Mock private EmailDispatchService emailDispatchService;
   @Mock private UserCredentialService userCredentialService;
   @Mock private LoginAttemptService loginAttemptService;
   @Mock private PasswordPolicyService passwordPolicyService;
@@ -71,7 +69,7 @@ class AuthServiceImplTest {
             passwordEncoder,
             jwtTokenProvider,
             verificationCodeService,
-            emailSender,
+            emailDispatchService,
             userCredentialService,
             loginAttemptService,
             passwordPolicyService);
@@ -208,20 +206,7 @@ class AuthServiceImplTest {
 
     authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.RESET), CLIENT_IP);
 
-    then(emailSender).should().sendVerificationCode(EMAIL, EmailScene.RESET, "123456");
-  }
-
-  @Test
-  void should_keep_uniform_response_when_mail_transport_fails() {
-    given(userMapper.selectOne(any())).willReturn(activeUser());
-    given(verificationCodeService.issue(EMAIL, EmailScene.RESET, CLIENT_IP)).willReturn("123456");
-    willThrow(new EmailDeliveryException("smtp down", null))
-        .given(emailSender)
-        .sendVerificationCode(EMAIL, EmailScene.RESET, "123456");
-
-    assertThatCode(() ->
-            authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.RESET), CLIENT_IP))
-        .doesNotThrowAnyException();
+    then(emailDispatchService).should().dispatch(EMAIL, EmailScene.RESET, "123456");
   }
 
   @Test
@@ -233,7 +218,7 @@ class AuthServiceImplTest {
 
     authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.RESET), CLIENT_IP);
 
-    then(emailSender).shouldHaveNoInteractions();
+    then(emailDispatchService).shouldHaveNoInteractions();
   }
 
   @Test
@@ -257,7 +242,7 @@ class AuthServiceImplTest {
 
     authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.RESET), CLIENT_IP);
 
-    then(emailSender).shouldHaveNoInteractions();
+    then(emailDispatchService).shouldHaveNoInteractions();
   }
 
   @Test
@@ -268,7 +253,7 @@ class AuthServiceImplTest {
 
     authService.sendEmailCode(new SendEmailCodeParam(EMAIL, EmailScene.REGISTER), CLIENT_IP);
 
-    then(emailSender).shouldHaveNoInteractions();
+    then(emailDispatchService).shouldHaveNoInteractions();
   }
 
   @Test

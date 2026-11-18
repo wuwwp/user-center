@@ -2,7 +2,6 @@ package com.wwp.usercenter.config;
 
 import java.time.Clock;
 import java.time.ZoneId;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -11,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
 public class TimeConfig {
 
   @Bean
-  public Clock clock(@Value("${user-center.time-zone:Asia/Shanghai}") String timeZone) {
-    return Clock.system(ZoneId.of(timeZone));
+  public Clock clock(TimeZoneProperties properties) {
+    return Clock.system(ZoneId.of(properties.timeZone()));
   }
 }

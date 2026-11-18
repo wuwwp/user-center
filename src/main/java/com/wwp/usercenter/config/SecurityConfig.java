@@ -5,10 +5,9 @@ import com.wwp.usercenter.security.JwtAuthenticationFilter;
 import com.wwp.usercenter.security.JwtTokenProvider;
 import com.wwp.usercenter.security.RestAccessDeniedHandler;
 import com.wwp.usercenter.security.RestAuthenticationEntryPoint;
-import java.util.Arrays;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -32,6 +31,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
+@EnableConfigurationProperties(CorsProperties.class)
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -92,11 +92,10 @@ public class SecurityConfig {
   }
 
   @Bean
-  public CorsConfigurationSource corsConfigurationSource(
-      @Value("${security.cors.allowed-origins}") String allowedOrigins) {
+  public CorsConfigurationSource corsConfigurationSource(CorsProperties properties) {
     CorsConfiguration configuration = new CorsConfiguration();
     configuration.setAllowedOrigins(
-        Arrays.stream(allowedOrigins.split(",")).map(String::trim).toList());
+        properties.allowedOrigins() == null ? List.of() : properties.allowedOrigins());
     configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
     configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
     configuration.setMaxAge(3600L);

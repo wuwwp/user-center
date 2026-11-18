@@ -12,6 +12,10 @@ FROM eclipse-temurin:21-jre
 # 业务日期与日志统一按东八区，避免容器默认 UTC 让「每日」在北京时间 08:00 才跨日
 ENV TZ=Asia/Shanghai
 WORKDIR /app
+# 仅用于容器健康检查
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 RUN groupadd --system app && useradd --system --gid app app
 COPY --from=build /workspace/target/*.jar app.jar
 USER app

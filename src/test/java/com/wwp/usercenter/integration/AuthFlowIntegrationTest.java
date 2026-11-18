@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -43,11 +44,9 @@ import org.testcontainers.utility.DockerImageName;
 @ActiveProfiles("test")
 class AuthFlowIntegrationTest {
 
-  @Container
+  @Container @ServiceConnection
   static final MySQLContainer<?> MYSQL =
-      new MySQLContainer<>(DockerImageName.parse("mysql:8.4"))
-          .withDatabaseName("usercenter")
-          .withInitScript("db/init.sql");
+      new MySQLContainer<>(DockerImageName.parse("mysql:8.4")).withDatabaseName("usercenter");
 
   @Container
   static final GenericContainer<?> REDIS =
@@ -55,9 +54,6 @@ class AuthFlowIntegrationTest {
 
   @DynamicPropertySource
   static void registerProperties(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
-    registry.add("spring.datasource.username", MYSQL::getUsername);
-    registry.add("spring.datasource.password", MYSQL::getPassword);
     registry.add("spring.data.redis.host", REDIS::getHost);
     registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
     registry.add("spring.data.redis.password", () -> "");

@@ -21,6 +21,9 @@ spring:
       maximum-pool-size: 10
       minimum-idle: 2
       connection-timeout: 3000
+  flyway:
+    # 生产只跑版本化迁移；开发 profile 会追加 classpath:db/dev
+    locations: classpath:db/migration
   data:
     redis:
       host: ${REDIS_HOST:localhost}

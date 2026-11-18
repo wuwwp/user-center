@@ -39,7 +39,9 @@
 ## 4. 异常与错误码
 
 - 业务失败抛 `BusinessException(ErrorCode, message)`，由 `GlobalExceptionHandler` 统一转换
-- 错误码使用枚举，按模块分段：`400xx` 参数、`401xx` 认证、`403xx` 权限、`409xx` 冲突、`429xx` 限流、`500xx` 系统
+- 错误响应使用 RFC 9457 `ProblemDetail`（`application/problem+json`），业务码放 `code` 扩展字段；成功响应直接返回 DTO/record，不再包统一 envelope
+- Spring MVC 自带的 400/405/406/415 也由 `ResponseEntityExceptionHandler` 统一映射，不能被兜底分支变成 500
+- 错误码使用枚举，按模块分段：`400xx` 参数、`401xx` 认证、`403xx` 权限、`405xx` 方法、`406xx` 可接受性、`409xx` 冲突、`415xx` 媒体类型、`429xx` 限流、`500xx` 系统
 - 不使用返回 `null` 或 `false` 表示失败
 - 不吞异常；catch 后必须处理或包装再抛
 - 对外错误信息不包含堆栈、SQL、内部路径
@@ -57,6 +59,7 @@
 - 事务注解只放在 service 的公开方法上
 - 默认捕获 `RuntimeException` 回滚；受检异常需显式 `rollbackFor`
 - 事务内不做 HTTP 调用、发邮件、发短信等外部 I/O
+- 邮件通过有界线程池异步投递；请求线程只提交任务，队列满时回退到调用线程形成背压
 - 缓存/消息等副作用放在事务提交后执行
 
 ## 7. 日志
@@ -64,7 +67,7 @@
 - 使用 SLF4J：`log.info("user login, userId={}", userId)`
 - 禁止字符串拼接日志
 - 禁止记录密码、令牌、验证码、完整邮箱、手机号；验证码仅在开发 `log` 模式输出到本地日志，生产 `smtp` 模式禁止
-- 邮件发送失败由通道实现抛 `EmailDeliveryException`；认证流程记录 `error` 日志与堆栈，但不得改变对外响应（避免可投递性差异变成用户枚举信号）
+- 邮件发送失败由通道实现抛 `EmailDeliveryException`；`EmailDispatchService` 在异步线程记录 `error` 日志与堆栈，但不得改变对外响应（避免可投递性差异变成用户枚举信号）
 - 异常日志记录堆栈，业务日志记录关键标识（用户 ID、操作类型、结果）
 - 级别：`error` 需要人处理；`warn` 异常但可恢复；`info` 关键业务节点；`debug` 排查细节
 
@@ -83,6 +86,7 @@
 - 唯一索引、联合索引按查询条件设计；索引变更需写明理由
 - 表名、列名遇到保留字（如 `user`）使用反引号
 - MyBatis XML 放在 `src/main/resources/mapper/`，namespace 与 Mapper 全限定名一致，语句 `id` 与 Mapper 方法名一致
+- 结构变更统一用 Flyway：版本化脚本放 `src/main/resources/db/migration`，已执行的脚本不得修改，只能新增版本；开发种子放 `db/dev` 的可重复迁移，生产只加载 `db/migration`
 
 ## 9. 常量与枚举
 

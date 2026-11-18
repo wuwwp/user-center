@@ -38,3 +38,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### TLS certs (generated locally) ###
+deploy/nginx/certs/*.pem
+deploy/nginx/certs/*.key
+deploy/nginx/certs/*.crt

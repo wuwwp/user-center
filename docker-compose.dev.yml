@@ -1,0 +1,14 @@
+# 本地/开发覆盖：暴露 MySQL/Redis 端口，Nginx 使用 HTTP 配置。
+# 用法：docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+services:
+  mysql:
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+
+  redis:
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
+
+  nginx:
+    volumes:
+      - ./deploy/nginx/default.dev.conf:/etc/nginx/conf.d/default.conf:ro

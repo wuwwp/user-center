@@ -1,6 +1,7 @@
 package com.wwp.usercenter.service.impl;
 
 import com.wwp.usercenter.common.constant.VerificationCodeConstants;
+import com.wwp.usercenter.config.MailProperties;
 import com.wwp.usercenter.model.enums.EmailScene;
 import com.wwp.usercenter.service.EmailDeliveryException;
 import com.wwp.usercenter.service.EmailSender;
@@ -10,7 +11,6 @@ import jakarta.mail.internet.MimeMessage;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -33,16 +33,13 @@ public class SmtpEmailSender implements EmailSender {
   private final String from;
   private final String fromName;
 
-  public SmtpEmailSender(
-      JavaMailSender mailSender,
-      @Value("${user-center.mail.from:}") String from,
-      @Value("${user-center.mail.from-name:用户中心}") String fromName) {
-    if (from == null || from.isBlank()) {
+  public SmtpEmailSender(JavaMailSender mailSender, MailProperties properties) {
+    if (properties.from() == null || properties.from().isBlank()) {
       throw new IllegalStateException("user-center.mail.from 不能为空");
     }
     this.mailSender = mailSender;
-    this.from = from;
-    this.fromName = fromName;
+    this.from = properties.from();
+    this.fromName = properties.fromName();
   }
 
   @Override

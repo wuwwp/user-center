@@ -5,7 +5,7 @@
 | 项目 | 内容 |
 |---|---|
 | 文档名称 | 用户中心（统一认证服务）设计文档 |
-| 文档版本 | v0.17 |
+| 文档版本 | v0.18 |
 | 文档状态 | 评审中 |
 | 编写日期 | 2026-11-13 |
 | 适用范围 | user-center 服务与配套 Web 前端的设计、开发、测试与部署 |
@@ -32,6 +32,7 @@
 | v0.15 | 2026-11-16 | — | 日志邮件实现仅在非 prod 加载；生产误配 log 模式直接启动失败 |
 | v0.16 | 2026-11-17 | — | 阶段 2：登录失败账号/IP 双维度锁定、发码 IP 限频、弱密码字典、验证码失败次数、可信代理 IP 解析与安全测试矩阵 |
 | v0.17 | 2026-11-17 | — | 客户端 IP 统一由 Tomcat RemoteIpValve 解析：移除应用层 XFF 解析与 `trust-forwarded-for` 开关，应用只读 `remoteAddr` |
+| v0.18 | 2026-11-18 | — | 错误响应改为 RFC 9457 ProblemDetail；JWT 固定 HS256 + 校验 audience；Flyway 迁移；异步邮件；TLS/端口与 CI 生产化 |
 
 ## 1. 引言
 
@@ -211,7 +212,8 @@ create table `user` (
 
 - 基础路径：`/api/v1`
 - 认证头：`Authorization: Bearer <token>`
-- 返回体：`{"code": 0, "message": "ok", "data": {...}}`
+- 成功响应直接返回 DTO/record，不再包一层统一 envelope
+- 错误响应使用 RFC 9457 `ProblemDetail`（`application/problem+json`），包含 `status`、`title`、`detail` 与扩展字段 `code`
 - 分页参数：`page`（从 1 开始）、`size`（默认 10，最大 100）
 - 时间格式：ISO-8601
 
@@ -219,18 +221,20 @@ create table `user` (
 
 | code | HTTP | 含义 |
 |---|---|---|
-| 0 | 200 | 成功 |
 | 40000 | 400 | 参数校验失败 |
 | 40001 | 400 | 验证码错误 |
 | 40002 | 400 | 验证码已过期 |
 | 40100 | 401 | 未登录或令牌无效 |
 | 40101 | 401 | 邮箱或密码错误 |
-| 40102 | 401 | 登录失败次数过多，账号锁定 |
+| 40102 | 401 | 登录失败次数过多，请稍后再试 |
 | 40103 | 401 | 账号已封禁（仅在凭证验证通过后返回） |
 | 40104 | 401 | 账号已注销（仅在凭证验证通过后返回） |
 | 40300 | 403 | 无权限 |
 | 40400 | 404 | 资源不存在 |
+| 40500 | 405 | 请求方法不支持 |
+| 40600 | 406 | 无法生成可接受的响应 |
 | 40900 | 409 | 资源冲突（邮箱已注册等） |
+| 41500 | 415 | 不支持的媒体类型 |
 | 42900 | 429 | 请求过于频繁 |
 | 50000 | 500 | 系统错误 |
 
@@ -268,8 +272,9 @@ create table `user` (
 ### 8.1 认证与令牌
 
 - JWT 使用 HS256，密钥 ≥ 256 位，仅存于环境变量或本地配置
-- 校验固定算法，拒绝 `none` 与算法替换
-- claims 仅包含 `sub`(用户 ID)、`ver`(令牌版本)、`jti`、`iat`、`exp`、`iss`；**不包含 role**，角色以数据库为准
+- 校验固定算法，拒绝 `none` 与算法替换；解析后校验 header 算法必须为 HS256
+- claims 包含 `sub`(用户 ID)、`ver`(令牌版本)、`aud`、`jti`、`iat`、`exp`、`iss`；**不包含 role**，角色以数据库为准
+- 解析时校验 issuer 与 audience，避免令牌被其它服务复用
 - 有效期 2 小时，不提供刷新令牌；过期后重新登录
 - 每个请求校验签名、有效期，并查询用户行比对 `ver` 与 `status`；角色从数据库读取后生成 authority
 - 作用域：当前令牌仅用于本服务；其它项目接入时通过 `/internal/introspect` 校验，不共享 HS256 密钥；后续多服务本地验签时切换 RS256（认证服务持私钥签发，业务服务持公钥验签）
@@ -290,9 +295,10 @@ create table `user` (
 - 时间与时区：业务日期按 `user-center.time-zone`（默认 `Asia/Shanghai`）计算，通过注入 `Clock` 使用；容器显式设置 `TZ=Asia/Shanghai`，不依赖镜像默认 UTC
 - SQL 分层：简单单表 CRUD 继续用 Wrapper；`token_version` 原子自增等需要数据库表达式的写入放 `UserMapper.xml`；service 不拼 SQL
 - 邮件发送：`user-center.mail.mode=log|smtp` 二选一；SMTP 故障只记录 error 日志、不改变对外响应，避免「可投递/不可投递」差异变成枚举信号；生产默认 smtp，缺少配置时启动失败；日志实现用 `@Profile("!prod")` 排除，生产误配 log 同样启动失败
+- 邮件投递异步执行：请求线程只提交任务，SMTP 超时不拖慢注册/发码；有界队列满时回退到调用线程形成背压
+- 数据库迁移：Flyway 管理 `db/migration`；开发 profile 追加 `db/dev` 的可重复迁移创建种子管理员，生产不创建默认账号
 - 封禁账号：不允许自助重置密码；重置场景不发码，重置接口在验证码通过后返回 `ACCOUNT_BANNED`，需管理员解封后才能恢复
 - 发码接口统一返回成功，不暴露邮箱是否注册；未注册邮箱照常限频与写码，但不投递，后续校验自然失败
-- 登录失败、发码同时做账号维度与 IP 维度计数；客户端 IP 仅信任来自 Nginx 的 `X-Forwarded-For`，且只取可信代理追加的最后一跳
 - 客户端 IP：应用层只使用 `getRemoteAddr()`。生产由 `server.forward-headers-strategy=native` 启用 Tomcat `RemoteIpValve`，从可信代理链解析真实客户端写入 `remoteAddr`，并修正 scheme/host；该阀会改写/移除 `X-Forwarded-For`，应用层不再自行解析转发头。开发环境没有代理阀时，`remoteAddr` 即直连对端
 - 反向代理前提：后端端口不直接对公网暴露，Nginx 使用 `$proxy_add_x_forwarded_for`；若代理不在默认私有网段，需要配置 `server.tomcat.remoteip.internal-proxies` / `trusted-proxies`
 
