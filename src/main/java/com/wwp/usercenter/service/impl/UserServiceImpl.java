@@ -26,7 +26,10 @@ public class UserServiceImpl implements UserService {
 
   @Override
   public CurrentUserDTO getCurrentUser(Long userId) {
-    User user = requireNotDeletedUser(userId);
+    User user = userMapper.selectCurrentUserById(userId);
+    if (user == null || user.isDeleted()) {
+      throw new BusinessException(ErrorCode.NOT_FOUND);
+    }
     return new CurrentUserDTO(
         user.getUserAccount(), user.getNickname(), user.getEmail(), user.getRole());
   }

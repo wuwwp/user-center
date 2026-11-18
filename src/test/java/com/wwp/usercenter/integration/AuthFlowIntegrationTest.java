@@ -233,9 +233,9 @@ class AuthFlowIntegrationTest {
             .andExpect(jsonPath("$.code").value(40101))
             .andReturn();
 
-    String unknownMessage = JsonPath.read(unknown.getResponse().getContentAsString(), "$.message");
+    String unknownMessage = JsonPath.read(unknown.getResponse().getContentAsString(), "$.detail");
     String wrongMessage =
-        JsonPath.read(wrongPassword.getResponse().getContentAsString(), "$.message");
+        JsonPath.read(wrongPassword.getResponse().getContentAsString(), "$.detail");
     assertThat(unknownMessage).isEqualTo(wrongMessage);
   }
 
@@ -253,7 +253,7 @@ class AuthFlowIntegrationTest {
   private void register(String password) throws Exception {
     attemptRegister(requestCode(EmailScene.REGISTER), password)
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.code").value(0));
+        .andExpect(jsonPath("$.userAccount").isNotEmpty());
   }
 
   private ResultActions attemptReset(String code, String newPassword) throws Exception {
@@ -313,6 +313,6 @@ class AuthFlowIntegrationTest {
 
   private String login(String password) throws Exception {
     MvcResult result = attemptLogin(email, password).andExpect(status().isOk()).andReturn();
-    return JsonPath.read(result.getResponse().getContentAsString(), "$.data.token");
+    return JsonPath.read(result.getResponse().getContentAsString(), "$.token");
   }
 }

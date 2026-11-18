@@ -96,6 +96,16 @@ class JwtAuthenticationFilterTest {
   }
 
   @Test
+  void should_authenticate_with_case_insensitive_bearer_scheme() throws Exception {
+    given(tokenProvider.parse("token")).willReturn(new TokenPayload(7L, 3));
+    given(userMapper.selectAuthStateById(7L)).willReturn(user(7L, UserStatus.NORMAL, 3));
+
+    doFilter("bearer token");
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+  }
+
+  @Test
   void should_not_authenticate_without_bearer_header() throws Exception {
     doFilter(null);
 

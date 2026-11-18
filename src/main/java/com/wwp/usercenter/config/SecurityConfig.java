@@ -51,6 +51,7 @@ public class SecurityConfig {
         .logout(AbstractHttpConfigurer::disable)
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .requestCache(AbstractHttpConfigurer::disable)
         .authorizeHttpRequests(authorize ->
             authorize
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout")

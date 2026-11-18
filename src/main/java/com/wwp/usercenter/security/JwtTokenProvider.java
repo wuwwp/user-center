@@ -2,7 +2,9 @@ package com.wwp.usercenter.security;
 
 import com.wwp.usercenter.model.entity.User;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.UnsupportedJwtException;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import java.time.Clock;
@@ -22,6 +24,7 @@ public class JwtTokenProvider {
   public static final String TOKEN_TYPE = "Bearer";
 
   private static final String ISSUER = "user-center";
+  private static final String AUDIENCE = "user-center-api";
   private static final String CLAIM_TOKEN_VERSION = "ver";
 
   private final SecretKey key;
@@ -38,6 +41,9 @@ public class JwtTokenProvider {
     if (secret.length < 32) {
       throw new IllegalStateException("security.jwt.secret 解码后至少需要 32 字节（256 位）");
     }
+    if (properties.expiration().isZero() || properties.expiration().isNegative()) {
+      throw new IllegalStateException("security.jwt.expiration 必须为正数");
+    }
     this.key = Keys.hmacShaKeyFor(secret);
     this.clock = clock;
     this.expiration = properties.expiration();
@@ -48,6 +54,9 @@ public class JwtTokenProvider {
     return Jwts.builder()
         .issuer(ISSUER)
         .subject(String.valueOf(user.getId()))
+        .audience()
+        .add(AUDIENCE)
+        .and()
         .claim(CLAIM_TOKEN_VERSION, user.getTokenVersion())
         .id(UUID.randomUUID().toString())
         .issuedAt(Date.from(now))
@@ -57,13 +66,17 @@ public class JwtTokenProvider {
   }
 
   public TokenPayload parse(String token) {
-    Claims claims =
+    Jws<Claims> jws =
         Jwts.parser()
             .verifyWith(key)
             .requireIssuer(ISSUER)
+            .requireAudience(AUDIENCE)
             .build()
-            .parseSignedClaims(token)
-            .getPayload();
+            .parseSignedClaims(token);
+    if (!Jwts.SIG.HS256.getId().equals(jws.getHeader().getAlgorithm())) {
+      throw new UnsupportedJwtException("JWT 算法必须为 HS256");
+    }
+    Claims claims = jws.getPayload();
     long userId = Long.parseLong(claims.getSubject());
     return new TokenPayload(userId, intClaim(claims, CLAIM_TOKEN_VERSION));
   }

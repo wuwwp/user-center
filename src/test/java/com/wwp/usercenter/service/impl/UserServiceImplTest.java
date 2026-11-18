@@ -2,9 +2,11 @@ package com.wwp.usercenter.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
 
 import com.wwp.usercenter.common.BusinessException;
 import com.wwp.usercenter.common.ErrorCode;
@@ -106,14 +108,25 @@ class UserServiceImplTest {
 
   @Test
   void should_return_current_user_without_password_hash() {
-    given(userMapper.selectById(9L)).willReturn(activeUser());
+    given(userMapper.selectCurrentUserById(9L)).willReturn(activeUser());
 
     var dto = userService.getCurrentUser(9L);
 
     assertThat(dto.userAccount()).isEqualTo("u9a8b7c6d");
     assertThat(dto.email()).isEqualTo("alice@example.com");
+    then(userMapper).should(never()).selectById(any());
     then(passwordEncoder).shouldHaveNoInteractions();
     then(userCredentialService).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void should_return_not_found_when_current_user_absent() {
+    given(userMapper.selectCurrentUserById(9L)).willReturn(null);
+
+    assertThatThrownBy(() -> userService.getCurrentUser(9L))
+        .isInstanceOf(BusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(ErrorCode.NOT_FOUND);
   }
 
   private static User activeUser() {

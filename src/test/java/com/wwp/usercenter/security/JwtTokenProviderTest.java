@@ -5,10 +5,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.wwp.usercenter.model.entity.User;
 import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Base64;
+import java.util.Date;
+import javax.crypto.SecretKey;
 import org.junit.jupiter.api.Test;
 
 class JwtTokenProviderTest {
@@ -46,13 +53,61 @@ class JwtTokenProviderTest {
 
   @Test
   void should_reject_expired_token() {
+    Clock past = Clock.fixed(Instant.now().minus(Duration.ofHours(3)), ZoneOffset.UTC);
     JwtTokenProvider expiredProvider =
-        new JwtTokenProvider(new JwtProperties(SECRET, Duration.ofSeconds(-1)), CLOCK);
+        new JwtTokenProvider(new JwtProperties(SECRET, Duration.ofHours(2)), past);
     User user = new User();
     user.setId(1L);
     user.setTokenVersion(0);
 
     String token = expiredProvider.createToken(user);
+
+    assertThatThrownBy(() -> provider.parse(token)).isInstanceOf(JwtException.class);
+  }
+
+  @Test
+  void should_reject_non_positive_expiration() {
+    assertThatThrownBy(() -> new JwtTokenProvider(new JwtProperties(SECRET, Duration.ZERO), CLOCK))
+        .isInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
+  void should_reject_non_hs256_algorithm() {
+    String secret512 =
+        Base64.getEncoder().encodeToString("k".repeat(64).getBytes(StandardCharsets.UTF_8));
+    JwtTokenProvider provider512 =
+        new JwtTokenProvider(new JwtProperties(secret512, Duration.ofHours(2)), CLOCK);
+    SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret512));
+    Instant now = Instant.now(CLOCK);
+    String token =
+        Jwts.builder()
+            .issuer("user-center")
+            .subject("1")
+            .audience()
+            .add("user-center-api")
+            .and()
+            .claim("ver", 0)
+            .issuedAt(Date.from(now))
+            .expiration(Date.from(now.plusSeconds(60)))
+            .signWith(key, Jwts.SIG.HS512)
+            .compact();
+
+    assertThatThrownBy(() -> provider512.parse(token)).isInstanceOf(JwtException.class);
+  }
+
+  @Test
+  void should_reject_token_without_audience() {
+    SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(SECRET));
+    Instant now = Instant.now(CLOCK);
+    String token =
+        Jwts.builder()
+            .issuer("user-center")
+            .subject("1")
+            .claim("ver", 0)
+            .issuedAt(Date.from(now))
+            .expiration(Date.from(now.plusSeconds(60)))
+            .signWith(key, Jwts.SIG.HS256)
+            .compact();
 
     assertThatThrownBy(() -> provider.parse(token)).isInstanceOf(JwtException.class);
   }

@@ -9,6 +9,12 @@
         where id = #{userId}
     </select>
 
+    <select id="selectCurrentUserById" resultType="com.wwp.usercenter.model.entity.User">
+        select id, user_account, nickname, email, role, is_delete
+        from `user`
+        where id = #{userId}
+    </select>
+
     <update id="updatePassword">
         update `user`
         set password_hash = #{passwordHash},

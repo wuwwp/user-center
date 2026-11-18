@@ -7,20 +7,30 @@ import com.wwp.usercenter.model.enums.DeletedFlag;
 import com.wwp.usercenter.model.enums.UserRole;
 import com.wwp.usercenter.model.enums.UserStatus;
 import java.time.LocalDateTime;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 
 /** 用户实体，与 user 表一一对应。仅在 mapper/service 内部使用，不直接返回前端。 */
-@Data
+@Getter
+@Setter
+@ToString
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @TableName("`user`")
 public class User {
 
+  @EqualsAndHashCode.Include
   @TableId(type = IdType.AUTO)
   private Long id;
 
   private String userAccount;
   private String nickname;
   private String email;
-  private String passwordHash;
+
+  /** 密码哈希不参与 toString，避免实体被日志打印时泄露。 */
+  @ToString.Exclude private String passwordHash;
+
   private UserRole role;
   private UserStatus status;
   private DeletedFlag isDelete;

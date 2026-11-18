@@ -8,6 +8,7 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -57,6 +58,9 @@ class SecurityConfigTest {
     mockMvc
         .perform(get("/api/v1/users/me"))
         .andExpect(status().isUnauthorized())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(header().string("WWW-Authenticate", "Bearer"))
+        .andExpect(jsonPath("$.status").value(401))
         .andExpect(jsonPath("$.code").value(40100));
   }
 
@@ -71,8 +75,7 @@ class SecurityConfigTest {
     mockMvc
         .perform(get("/api/v1/users/me").header("Authorization", "Bearer valid-token"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.code").value(0))
-        .andExpect(jsonPath("$.data.userAccount").value("admin0001"));
+        .andExpect(jsonPath("$.userAccount").value("admin0001"));
   }
 
   @Test
@@ -112,8 +115,7 @@ class SecurityConfigTest {
 
     mockMvc
         .perform(post("/api/v1/auth/logout").header("Authorization", "Bearer valid-token"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.code").value(0));
+        .andExpect(status().isOk());
 
     then(authService).should().logout(7L);
   }
@@ -175,8 +177,7 @@ class SecurityConfigTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"admin@user-center.local\",\"password\":\"Test12345678\"}"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.code").value(0))
-        .andExpect(jsonPath("$.data.token").value("token-value"));
+        .andExpect(jsonPath("$.token").value("token-value"));
   }
 
   @Test
@@ -189,7 +190,7 @@ class SecurityConfigTest {
     mockMvc
         .perform(get("/api/v1/users/me?userId=999").header("Authorization", "Bearer valid-token"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.userAccount").value("u7"));
+        .andExpect(jsonPath("$.userAccount").value("u7"));
 
     then(userService).should().getCurrentUser(7L);
   }
@@ -232,7 +233,29 @@ class SecurityConfigTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"alice@example.com\",\"scene\":\"register\"}"))
         .andExpect(status().isTooManyRequests())
+        .andExpect(header().string("Retry-After", "60"))
         .andExpect(jsonPath("$.code").value(42900));
+  }
+
+  @Test
+  void should_return_405_when_method_not_supported() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/auth/login"))
+        .andExpect(status().isMethodNotAllowed())
+        .andExpect(jsonPath("$.status").value(405))
+        .andExpect(jsonPath("$.code").value(40500));
+  }
+
+  @Test
+  void should_return_415_when_media_type_unsupported() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/auth/login")
+                .contentType(MediaType.TEXT_PLAIN)
+                .content("email=alice@example.com"))
+        .andExpect(status().isUnsupportedMediaType())
+        .andExpect(jsonPath("$.status").value(415))
+        .andExpect(jsonPath("$.code").value(41500));
   }
 
   private static User user(long id, UserRole role) {
