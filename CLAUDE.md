@@ -4,45 +4,15 @@
 
 单体统一认证服务 + 配套 Web 前端：为多个自有项目提供统一账号、登录与管理员用户管理，后续可演进为 OAuth2/SSO 与微服务。设计文档见 `docs/plan.md`，当前进度见 `docs/progress.md`。
 
-## 技术栈
-
-- 运行时：Java 21（本机 `D:\dev\jdk-21`，系统 `JAVA_HOME` 已指向）
-- 后端：Spring Boot 4.1.x、Spring Security 7、MyBatis-Plus 3.5.18、MySQL 8.4 LTS、Redis 7.x
-- 认证：JWT（HS256，2 小时有效，`token_version` 整体吊销）
-- 前端：Vue 3 + Element Plus + Vite + TypeScript（`web/`）
-- 接口文档：springdoc-openapi 3.2.0（Spring Boot 4 必须用 3.x）
-- 测试：JUnit 5、Mockito、MockMvc、Testcontainers
-- 代码质量：Spotless（google-java-format）、Checkstyle、ESLint + Prettier
-- 部署：Docker Compose + Nginx；CI：GitHub Actions；压测：k6
-
-## 常用命令
-
-```bash
-./mvnw test                      # 单元测试
-./mvnw verify                    # 编译 + 测试 + 静态检查
-./mvnw spotless:apply            # 格式化 Java
-./mvnw spotless:check            # 格式检查（不改文件）
-./mvnw checkstyle:check          # 风格检查
-
-cd web && npm install
-npm run dev                      # 前端开发
-npm run build                    # 前端构建
-npm run lint                     # ESLint
-
-docker compose up -d             # 应用 + MySQL + Redis + Nginx
-```
-
-阶段 0 落地后以上命令才会全部可用；当前仓库仍是旧骨架。
-
 ## 目标目录结构
 
 ```
 src/main/java/com/wwp/usercenter/
 ├── UserCenterApplication.java
-├── common/          # BaseResponse、ErrorCode、BusinessException、GlobalExceptionHandler
-├── config/          # Security、Redis、Jackson、OpenAPI 配置
+├── common/          # ProblemDetail、ErrorCode、BusinessException、GlobalExceptionHandler
+├── config/          # Security、Redis、Jackson、OpenAPI、异步与配置属性
 ├── controller/      # 接口层，只做校验与调用
-├── service/         # 业务接口
+├── service/         # 业务接口（含 EmailDispatchService）
 │   └── impl/        # 业务实现，事务边界
 ├── mapper/          # MyBatis-Plus Mapper
 ├── model/
@@ -56,9 +26,13 @@ src/main/java/com/wwp/usercenter/
 src/main/resources/
 ├── application.yaml / application-dev.yaml / application-local.yaml
 ├── mapper/          # MyBatis XML
-└── db/init.sql      # 建表 + 种子管理员
+└── db/
+    ├── migration/   # Flyway 版本化迁移（V1__init.sql …）
+    └── dev/         # 开发环境可重复迁移（种子管理员）
 
 src/test/java/...    # 与主代码同包结构
+deploy/nginx/        # Nginx 配置与 TLS 证书
+.github/             # Dependabot；CI 草案见 docs/ci-workflow.yml
 web/                 # Vue 3 前端
 docs/                # 分层文档
 perf/                # k6 压测脚本
@@ -69,10 +43,13 @@ perf/                # k6 压测脚本
 - controller 不写业务分支；事务放在 service；mapper 只做数据访问
 - 实体不直接返回前端；入参 `param`、出参 `dto` 分开
 - 状态、角色、错误码必须用枚举，禁止魔法值
-- 业务失败统一抛 `BusinessException`，由全局异常处理转换；不吞异常
+- 业务失败统一抛 `BusinessException`，由全局异常处理转换为 RFC 9457 `ProblemDetail`；不吞异常
 - 入参使用 `@Valid` + 注解校验
 - 日志用 SLF4J 占位符；不打印密码、令牌、验证码、完整邮箱
 - SQL 关键字小写、参数绑定、禁止 `select *`、分页必须有上限
+- 表结构变更用 Flyway：只加新版本，不修改已执行脚本；开发种子放 `db/dev`
+- 邮件通过 `EmailDispatchService` 异步投递，业务层不同步调用 `EmailSender`
+- 测试入口 `./mvnw verify`；集成测试由 Failsafe 执行，本机无 Docker 时跳过
 - 提交信息使用 Conventional Commits（`feat:` / `fix:` / `docs:` / `refactor:` / `test:` / `chore:`）
 
 ## 文档读取顺序（渐进式加载）
