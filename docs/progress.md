@@ -1,8 +1,8 @@
 # 项目进度
 
 更新日期：2026-11-19
-设计文档版本：v0.19
-当前阶段：阶段 3 管理员已完成（本机 + VM + CI）；阶段 4 待开始
+设计文档版本：v0.20
+当前阶段：阶段 4 注销/恢复与管理员审计完成（本机 + CI）；阶段 5 Web 前端待开始
 
 ## 项目定位（护栏）
 
@@ -18,13 +18,15 @@
 - 阶段 0/1：工程骨架、统一异常、JWT 鉴权链、注册/登录/登出/改密/验证码重置
 - 阶段 2：账号/IP 锁定、邮箱/IP 发码限流、验证码失败 5 次作废、Top 1000 弱密码、可信 `remoteAddr`
 - 生产化（2026-11-18）：ProblemDetail、JWT HS256+aud、Flyway、异步邮件、Failsafe、TLS/CI 配置、依赖扫描
-- 阶段 3 管理员（2026-11-19）：
-  - `get /api/v1/admin/users`：`page>=1`、`size<=100`、可选 `status`；只取展示列，邮箱掩码
-  - `put /api/v1/admin/users/{account}/status`：封禁/解封；状态 + `token_version` 原子更新；禁止封禁自己；状态不变幂等
-  - `post /api/v1/admin/users/{account}/password/reset`：16 位随机密码，仅返回一次，`token_version` 自增
-  - Flyway `V2__admin_indexes.sql`；管理端按 `user_account` 查询；普通用户访问 403
-  - 默认决策：已注销账号不出现在列表、不可操作；可封禁其他管理员；管理员重置后不强制改密
-- 测试：111 个单元/slice + 10 个集成（AdminFlow 2 + AuthFlow 8，Failsafe，共享单例容器）；覆盖率门槛 80% 通过（完整运行行 87.4%、分支 81.9%）
+- 阶段 3 管理员（2026-11-19）：分页查询、封禁/解封、随机密码重置；管理端 403；封禁/重置自增 `token_version`
+- 阶段 4 注销与恢复（2026-11-19）：
+  - `delete /api/v1/users/me`：要求新场景 `DELETE` 验证码；逻辑注销 `is_delete=1` + `token_version` 自增；管理员自助注销返回 403
+  - `post /api/v1/users/me/recover`：`RECOVER` 验证码 + 新密码；原子恢复 `is_delete=0`、`password_hash`、`token_version+1`；封禁账号拒绝；清账号维度登录失败计数
+  - 注销只允许 `isActive()` 账号；重复注销在 Service 层按幂等成功处理；旧令牌重试会在过滤器得到 401
+  - 忘记密码重置成功后也清账号维度失败计数；IP 计数保留，靠 TTL 衰减
+  - `EmailScene.DELETE` 与 `verify:delete:{email}`；验证码场景隔离，RESET 码不能用于注销
+  - Flyway `V3__admin_audit_log.sql`：管理员封禁/解封/重置与审计写入同一事务
+- 测试：130 个单元/slice + 13 个集成（AdminFlow 2 + AuthFlow 8 + AccountLifecycle 3）；覆盖率门槛 80% 通过（本机单元/slice 行 89.6%、分支 80.2%）
 
 ## 环境
 
@@ -37,33 +39,33 @@
 
 ## 验收结果
 
-- 本机 `./mvnw verify`：111 个单元/slice 通过 + 10 个集成用例由 Failsafe 执行（无 Docker 跳过），Spotless、Checkstyle、JaCoCo 通过
-- VM Docker（2026-11-19）：Flyway V1+V2 成功；`AuthFlowIntegrationTest` 8/8、`AdminFlowIntegrationTest` 2/2 通过
-- GitHub Actions（2026-11-19）：`CI` workflow 连续通过；最新 run `44524605319` 在 Ubuntu runner 上完成 111 个单元/slice + 10 个集成测试（Testcontainers），Spotless、Checkstyle、JaCoCo 通过
-- 阶段 2：账号锁定、IP 锁定、验证码 5 次作废、弱密码不消费验证码、令牌失效、枚举一致均已验证
-- 阶段 3 本机：单元 + MockMvc 覆盖分页、掩码、封禁/解封、自封、随机密码、401/403/400
+- 本机 `./mvnw verify`：130 个单元/slice 通过 + 13 个集成用例由 Failsafe 执行（无 Docker 跳过），Spotless、Checkstyle、JaCoCo 通过
+- GitHub Actions（2026-11-19，run `44539442887`）：130 个单元/slice + 13 个集成（Testcontainers）通过；Flyway V1–V3、Spotless、Checkstyle、JaCoCo 全部通过
+- 阶段 4 闭环：注册 → 注销 → 登录 40104 → RECOVER 发码/恢复 → 新密码登录；注销/恢复后旧令牌 401
+- 阶段 4 边界：DELETE 码不能复用 RESET 码；管理员自助注销 403；封禁账号不能恢复
+- 阶段 3 VM Docker（历史）：Flyway V1+V2；`AuthFlowIntegrationTest` 8/8、`AdminFlowIntegrationTest` 2/2
 
-## 下一步（阶段 4 注销与恢复）
+## 下一步（阶段 5 Web 前端）
 
-1. `delete /api/v1/users/me`：逻辑注销，自增 `token_version`；管理员不可自助注销
-2. `post /api/v1/users/me/recover`：邮箱验证码 + 新密码，恢复后自增 `token_version`
-3. 状态语义：注销后登录 40104；恢复场景验证码 `verify:recover`；封禁账号不可恢复
-4. 阶段 3 遗留：管理员操作审计表（Flyway V3）是否与阶段 4 一并做；业务接口本身无未完成项
-5. 测试：注销/恢复闭环、旧令牌失效、验证码场景隔离、管理员接口不操作已注销账号
+1. `web/`：Vue 3 + Vite + TypeScript + Element Plus + Pinia + Vue Router；ESLint + Prettier
+2. UI-01 注册/登录：邮箱验证码、60 秒倒计时、登录后保存令牌
+3. UI-02 个人中心：资料、改密、忘记密码、注销（DELETE 码）、恢复（RECOVER 码）
+4. UI-03 管理后台：分页/状态过滤、封禁/解封、重置密码（仅 ADMIN 路由守卫）
+5. API 客户端：解析 `ProblemDetail.code`；401 清理令牌回登录；403 显示无权限；429 读 `Retry-After`
+6. 开发联调：Vite `/api` 代理到 `http://localhost:8080`；后端 CORS 默认允许 `http://localhost:5173`
 
 ## 交接
 
-- 新会话先读本文件与 `docs/stage-4-handoff.md`，再按需读 `docs/plan.md` §7、§8、§11
-- 阶段 4 改动账号状态后，在 VM Docker 跑 `mvn -B -Dit.test=AdminFlowIntegrationTest,AuthFlowIntegrationTest verify`
-- Git：阶段 3 已合回 `main`；`CLAUDE.md` 已提交；工作区应以 `git status` 为准
+- 新会话先读本文件与 `docs/stage-5-handoff.md`，再按需读 `docs/plan.md` §4.2、§7.3、§8、§11
 - CI：`gh run list -R wuwwp/user-center -L 3`；`main` 应为绿灯；workflow 在 `.github/workflows/ci.yml`
+- Git：阶段 4 已推送 `main`；工作区应以 `git status` 为准
 - 课程文件在 `D:\teach\user-center-spring-security`（本地，不提交仓库）
 - 关键约束：JWT 不含 role；改密/登出/封禁/恢复/角色变更/管理员重置必须自增 `token_version`
+- 关键约束：注销只允许正常账号；恢复不恢复封禁状态；管理员审计与业务写入同事务
 
 ## 待确认 / 阻塞
 
-- 阶段 3 业务接口无未完成项；GitHub Actions 已恢复并连续通过（最新 run 44524605319）
-- 管理员操作审计表尚未实现（建议阶段 4 一并做 Flyway V3）
-- CI workflow 仍使用 `actions/checkout@v4` / `actions/setup-java@v4`，有 Node 20 弃用警告；升级 v5 需要 `workflow` scope 或网页编辑
+- 前端令牌存放方式（内存 + 刷新丢失 vs `sessionStorage` vs `localStorage`）在阶段 5 首课决定
 - 后续优化：Lua 原子化 `INCR + EXPIRE`、验证码 `GET + DEL`（见 `docs/decisions.md` §28）
-- 云服务器规格未定；前端 `web/` 尚未实现（阶段 5），Nginx TLS 证书需部署时生成或申请
+- 云服务器规格未定；Nginx TLS 证书需部署时生成或申请
+- 注销后的数据保留期限/匿名化未做，留到演进路线

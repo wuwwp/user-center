@@ -1,101 +1,50 @@
-# 阶段 4 交接：注销与恢复
+# 阶段 4 交接：注销与恢复（已完成）
 
+> **状态：已完成（2026-11-19）。** 本机、CI 与集成测试均通过；下一阶段见 `docs/stage-5-handoff.md`。
 > 更新日期：2026-11-19
-> 读者：下一个会话的 AI / 开发者
-> 先读 `docs/progress.md`，再读本文；设计以 `docs/plan.md` §7.3、§8.2、§11 为准。
+> 设计以 `docs/plan.md` §7.3、§8.2、§11 为准。
 
-## 1. 阶段 3 结束状态
+## 1. 完成内容
 
-- 管理端三个接口已完成：分页查询、封禁/解封、随机密码重置。
-- 管理员列表只取展示列、邮箱掩码；封禁/解封/重置都自增 `token_version`。
-- 普通用户访问 `/api/v1/admin/**` 返回 403；禁止管理员封禁自己。
-- 本机 `./mvnw verify`：111 个单元/slice 通过 + 10 个集成用例由 Failsafe 执行（本机无 Docker 跳过）；覆盖率行 87.4% / 分支 81.9%。
-- 阶段 3 集成测试已在 VM 通过：`AdminFlowIntegrationTest` 2/2、`AuthFlowIntegrationTest` 8/8。
-- GitHub Actions 已恢复并连续通过：最新 run `44524605319`，111 单元/slice + 10 集成 + Spotless/Checkstyle/JaCoCo 全绿。
+- `delete /api/v1/users/me`：登录态 + `DELETE` 场景验证码；逻辑注销 `is_delete=1`，同时 `token_version+1`。
+- `post /api/v1/users/me/recover`：`RECOVER` 验证码 + 新密码；原子恢复 `is_delete=0`、`password_hash`、`token_version+1`。
+- 注销后登录返回 40104；恢复后旧令牌全部 401；恢复成功后可正常登录新密码。
+- 管理员自助注销返回 40300；封禁账号不能注销、不能恢复。
+- Flyway `V3__admin_audit_log.sql`：管理员封禁/解封/重置密码与审计记录同事务。
+- 测试：本机 130 个单元/slice + 13 个集成；CI run `44539442887` 全绿。
 
-## 1.1 阶段 3 未完成项
+## 2. 已定决策
 
-- 三个管理接口与测试均已完成，业务接口没有未完成项。
-- 管理员操作审计表未实现（阶段 3 明确延期），建议本阶段用 Flyway V3 一并做。
-- Redis `INCR + EXPIRE` Lua 原子化、验证码 `GET + DEL` 原子化尚未做，属于已知优化（decisions §28）。
-- 前端、部署、TLS 证书属于阶段 5/6，不是阶段 3 缺口。
-- `SecurityConfig` 已预留 `POST /api/v1/users/me/recover` 为 `permitAll`，但 Controller 尚未实现，属于本阶段范围。
+1. 注销要求验证码：新增 `EmailScene.DELETE` 和 `verify:delete:{email}`，不复用 `RESET`。
+2. 管理员禁止自助注销：Service 判断角色返回 40300。
+3. 注销只允许 `isActive()`；恢复只允许已注销且未封禁的账号。“封禁 + 已注销”视为不支持状态，避免管理端看不到、用户又恢复不了的死锁。
+4. 重复注销：Service 层幂等成功；首次注销已自增 `token_version`，旧令牌重试会在过滤器得到 401，不会到达 Controller。
+5. 恢复成功后清 `login:fail:account:{email}`；不清 IP 计数。忘记密码重置成功后也按同一规则清理。
+6. 注销后的数据保留期限/匿名化暂不做，写入演进路线。
+7. 管理员操作审计表用 Flyway V3 实现，范围是管理员封禁/解封/重置密码。
 
-## 2. 当前 Git / 工作区状态
+## 3. 代码落点
 
-- 阶段 3 已合回 `main`；`CLAUDE.md` 已提交。
-- `docs/decisions.md` 是本地文件（gitignore），阶段 3 取舍见 §31。
-- 应用当前未运行；VM 上 MySQL/Redis 容器可用。
-- 阶段 4 代码尚未开始；`main` 工作区干净，CI 绿。
+| 功能 | 位置 |
+|---|---|
+| 注销/恢复入口 | `UserController`：`DELETE /me`、`POST /me/recover` |
+| 生命周期业务 | `AccountLifecycleServiceImpl` |
+| 验证码场景 | `EmailScene.DELETE`；`AuthServiceImpl.shouldDeliver` |
+| 注销/恢复 SQL | `UserMapper.xml`：`softDeleteAccount`、`recoverAccount` |
+| 管理员写入 + 审计 | `AdminUserActionWriter` |
+| 审计落库 | `AuditLogServiceImpl`、`AdminAuditLogMapper`、`AdminAuditLog` |
+| 数据库迁移 | `V3__admin_audit_log.sql` |
+| 测试 | `AccountLifecycleServiceImplTest`、`AccountLifecycleIntegrationTest`、`UserControllerTest`、`AdminUserActionWriterTest`、`AuditLogServiceImplTest` |
 
-## 3. 阶段 4 范围
+## 4. 事务与状态语义
 
-按 `docs/plan.md` §7.3：
+- 注销 SQL：`set is_delete=1, token_version=token_version+1 where id=? and is_delete=0 and status=0`。
+- 恢复 SQL：`set is_delete=0, password_hash=?, token_version=token_version+1 where id=? and is_delete=1 and status=0`。
+- 恢复的 BCrypt 在事务外；SQL 单条原子完成状态、密码和令牌版本。
+- 管理员封禁/解封/重置：`AdminUserActionWriter` 的短事务内完成业务写入 + 审计；审计失败一起回滚。
+- 审计表只追加，不提供更新/删除接口；不记录密码、令牌、验证码、完整邮箱。
 
-1. `delete /api/v1/users/me`：当前用户注销。
-2. `post /api/v1/users/me/recover`：邮箱验证码恢复已注销账号。
-
-约束：
-
-- 注销是**逻辑删除**（`is_delete=1`），行保留供恢复；不物理删除。
-- 注销、恢复都必须自增 `token_version`，旧令牌立即失效。
-- 注销后登录：凭证正确时返回 40104（`ACCOUNT_DELETED`），不能泄露给未验证凭证的请求。
-- 恢复必须走 `RECOVER` 场景验证码；禁止跨场景复用。
-- 恢复需要设置新密码，应用弱密码字典。
-- 管理员账号不能自助注销（推荐）。
-- 已注销账号不出现在管理员列表，管理员封禁/重置接口也不操作它。
-
-## 4. 建议落点
-
-### 4.1 注销
-
-- 新增 `AccountLifecycleService` / `Impl`，或放在 `UserServiceImpl`；controller 只调用。
-- 入参先定：仅登录态直接注销，还是要求再次输入密码/验证码。推荐至少要求密码，防止令牌被盗后直接注销；若本期简化，至少写进 decisions。
-- 原子 SQL 放 `UserMapper.xml`：
-  ```sql
-  update `user`
-  set is_delete = 1, token_version = token_version + 1
-  where id = #{userId} and is_delete = 0
-  ```
-- 管理员角色判断：`role == ADMIN` 抛 `FORBIDDEN` 或 `PARAM_INVALID`；不要允许管理员把自己删掉。
-- 已注销用户重复注销：幂等成功或 404，先定并写测试。
-- 日志记录 userId，不打印邮箱/密码。
-
-### 4.2 恢复
-
-- 入参 `RecoverAccountParam`：`email`、`code`、`newPassword`；复用 `@ValidEmail`、`@EmailCode`、`@StrongPassword`。
-- 流程：弱密码校验 → `verifyAndConsume(email, RECOVER, code)` → 查用户 → 必须是已注销账号 → 封禁账号拒绝 → 更新密码、`is_delete=0`、`token_version+1`。
-- 原子 SQL 放 `UserMapper.xml`：
-  ```sql
-  update `user`
-  set is_delete = 0,
-      password_hash = #{passwordHash},
-      token_version = token_version + 1
-  where id = #{userId} and is_delete = 1
-  ```
-- 未注销/不存在账号：验证码通过后返回统一错误，避免枚举；发码接口 `shouldDeliver(RECOVER)` 已只对已注销账号投递。
-- 恢复后是否需要重新登录：是，旧令牌全部失效。
-- 恢复后登录失败计数：建议清除账号维度计数。
-
-### 4.3 验证码与安全
-
-- `EmailScene.RECOVER` 已存在，发码场景隔离和失败次数限制沿用阶段 2。
-- 恢复接口公开，受发码限频和验证码失败次数保护；不需要额外 IP 限流，但可复用 `ClientIpResolver` 记录。
-- `SecurityConfig` 已预留 `POST /api/v1/users/me/recover` 为 `permitAll`，但 Controller 尚未实现，属于本阶段范围。
-- 注销/恢复都写审计日志（如果阶段 3 的审计表还没做，可在本阶段补 Flyway V3）。
-
-## 5. 阶段 1–3 留下的护栏
-
-- 账号状态：`User.isDeleted()` / `isBanned()` / `isActive()`。
-- 认证资格：`AuthServiceImpl.ensureAccountUsable`（已注销 40104、封禁 40103）。
-- 当前用户资料：`UserMapper.selectCurrentUserById`，不要加载密码哈希。
-- 管理端状态：`UserMapper.selectAdminStateByAccount` / `updateStatusAndIncrementTokenVersion`。
-- 密码写入：`UserCredentialService.updatePassword` 已原子自增 `token_version`；恢复如果同时改 `is_delete`，需要新的原子 SQL。
-- 错误：`BusinessException` → `ProblemDetail`；成功响应直接返回 DTO。
-- 表结构：Flyway 新版本，不改已执行脚本；如需审计表写 `V3__...sql`。
-- 日志：不打印密码、令牌、验证码、完整邮箱。
-
-## 6. 测试与命令
+## 5. 测试与验收
 
 本机：
 
@@ -103,36 +52,27 @@
 ./mvnw verify
 ```
 
-VM Docker：
+结果：130 个单元/slice 通过；13 个集成用例在无 Docker 时跳过；Spotless、Checkstyle、JaCoCo 通过。
+
+CI：
 
 ```bash
-docker run --rm --network host \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v uc-m2:/root/.m2 -v ~/uc-it:/app -w /app \
-  -e TESTCONTAINERS_HOST_OVERRIDE=127.0.0.1 \
-  maven:3.9-eclipse-temurin-21 \
-  mvn -B -Dit.test=AdminFlowIntegrationTest,AuthFlowIntegrationTest verify
+gh run list -R wuwwp/user-center -L 3
 ```
 
-阶段 4 建议新增 `AccountLifecycleIntegrationTest`：注册 → 注销 → 旧令牌 401 → 登录 40104 → 发 recover 码 → 恢复 → 登录成功 → 旧令牌仍 401；另测验证码跨场景、弱密码、封禁账号不可恢复、管理员不可注销。
+run `44539442887`：130 + 13 全通过，Flyway V1–V3 成功。
 
-## 7. 开放决策（动手前先定）
+阶段 4 覆盖：
 
-1. 注销是否需要再次输入密码/验证码，还是登录态直接注销？
-2. 管理员账号是否禁止自助注销？推荐禁止。
-3. 封禁的已注销账号能否恢复？推荐禁止，先由管理员解封。
-4. 重复注销返回成功还是 404？
-5. 恢复后是否清除登录失败计数？
-6. 注销后的数据保留期限/匿名化是否本期做？建议写入演进路线。
-7. 管理员操作审计表是否在阶段 4 一并做（Flyway V3）？
+- 注销 → 旧令牌 401 → 登录 40104 → RECOVER 发码 → 恢复 → 新密码登录
+- DELETE 码与 RESET 码场景隔离
+- 管理员自助注销 403
+- 封禁账号不能恢复（单元测试）
+- 管理员审计写入与业务同事务
 
-结论写入 `docs/decisions.md`，不要只留在对话里。
+## 6. 未做 / 后续
 
-## 8. 阶段 4 完成定义
-
-- `delete /users/me` 与 `post /users/me/recover` 可用，注销后登录 40104，旧令牌 401。
-- 恢复需要 RECOVER 场景验证码 + 新密码，恢复后旧令牌失效。
-- 管理员不能自助注销；封禁账号不能自助恢复；已注销账号不出现在管理员列表。
-- 单元 + Web + 集成测试覆盖；本机 `./mvnw verify` 与 VM Docker 集成测试通过，覆盖率不低于 80%。
-- 阶段 3 的 `AdminFlowIntegrationTest` 已在 VM 通过（2/2），CI 也已跑通。
-- 进度与本文同步更新；新增取舍写入 `docs/decisions.md`。
+- 注销后的数据保留、匿名化、物理清理：演进路线。
+- 用户自助注销/恢复的事件没有写入 `admin_audit_log`（该表只记录管理员操作）；如需完整安全审计，后续可扩展 `actor_type` 或独立事件表。
+- Redis `INCR + EXPIRE`、验证码 `GET + DEL` 的 Lua 原子化仍未做。
+- 前端注销/恢复页面属于阶段 5。
