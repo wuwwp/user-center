@@ -61,13 +61,12 @@ docker compose up -d --build
 
 ## CI
 
-`docs/ci-workflow.yml` 是 GitHub Actions 工作流草案。当前 PAT 缺少 `workflow` scope，授权后复制到 `.github/workflows/ci.yml` 即可启用：
+GitHub Actions 工作流在 `.github/workflows/ci.yml`：每次 push 到 `main` 或开 PR 时运行 `./mvnw verify`，包括格式检查、单元/slice 测试、Testcontainers 集成测试和覆盖率门槛。
 
-```bash
-mkdir -p .github/workflows && cp docs/ci-workflow.yml .github/workflows/ci.yml
-```
-
-Dependabot 配置（`.github/dependabot.yml`）已启用。
+- 结果在仓库 **Actions** 页查看。
+- 公开仓库免费；私有仓库每月有免费额度。
+- Dependabot 配置（`.github/dependabot.yml`）已启用。
+- 如 Actions 页没有运行记录，检查 **Settings → Actions → General → Actions permissions** 是否允许 Actions。
 
 ## 文档
 

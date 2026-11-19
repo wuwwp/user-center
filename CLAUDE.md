@@ -32,7 +32,7 @@ src/main/resources/
 
 src/test/java/...    # 与主代码同包结构
 deploy/nginx/        # Nginx 配置与 TLS 证书
-.github/             # Dependabot；CI 草案见 docs/ci-workflow.yml
+.github/             # Dependabot、GitHub Actions CI
 web/                 # Vue 3 前端
 docs/                # 分层文档
 perf/                # k6 压测脚本

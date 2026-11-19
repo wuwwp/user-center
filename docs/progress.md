@@ -25,7 +25,7 @@
   - 邮件异步投递（有界线程池，队列满回退调用线程）；`EmailDispatchService` 记录失败日志
   - MySQL 集成测试用 `@ServiceConnection`；集成测试移交 Failsafe；安全测试依赖改用 Boot 4 模块化 starter
   - 配置收口为 `MailProperties`/`CorsProperties`/`TimeZoneProperties`；`requestCache` 关闭
-  - Nginx 80→443、MySQL/Redis 不发布宿主机端口、应用健康检查、Dependabot、README
+  - Nginx 80→443、MySQL/Redis 不发布宿主机端口、应用健康检查、Dependabot、GitHub Actions CI、README
 - 测试：94 个单元/slice + 8 个集成（Failsafe）；覆盖率行 86.0%、分支 80.7%，门槛 80%
 
 ## 环境
@@ -65,4 +65,3 @@
 - 后续优化：Lua 原子化 `INCR + EXPIRE`、验证码 `GET + DEL`（见 `docs/decisions.md` §28）
 - SMTP 已实测（QQ 邮箱）；正式上线建议企业邮件 + SPF/DKIM/DMARC
 - 云服务器规格未定；前端 `web/` 尚未实现（阶段 5），Nginx TLS 证书需部署时生成或申请
-- CI 工作流草案在 `docs/ci-workflow.yml`；当前 PAT 缺少 `workflow` scope，授权后复制到 `.github/workflows/ci.yml` 启用
