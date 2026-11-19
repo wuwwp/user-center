@@ -15,6 +15,30 @@
         where id = #{userId}
     </select>
 
+    <select id="selectAdminUserPage" resultType="com.wwp.usercenter.model.entity.User">
+        select id, user_account, nickname, email, role, status, is_delete, create_time, last_login_time
+        from `user`
+        where is_delete = 0
+        <if test="status != null">
+            and status = #{status}
+        </if>
+        order by id desc
+    </select>
+
+    <select id="selectAdminStateByAccount" resultType="com.wwp.usercenter.model.entity.User">
+        select id, user_account, status, is_delete, role
+        from `user`
+        where user_account = #{account}
+    </select>
+
+    <update id="updateStatusAndIncrementTokenVersion">
+        update `user`
+        set status = #{status},
+            token_version = token_version + 1
+        where id = #{userId}
+          and is_delete = 0
+    </update>
+
     <update id="updatePassword">
         update `user`
         set password_hash = #{passwordHash},
