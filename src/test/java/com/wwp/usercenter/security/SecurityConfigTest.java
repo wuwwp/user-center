@@ -18,6 +18,7 @@ import com.wwp.usercenter.common.ErrorCode;
 import com.wwp.usercenter.config.SecurityConfig;
 import com.wwp.usercenter.controller.AuthController;
 import com.wwp.usercenter.controller.UserController;
+import com.wwp.usercenter.mapper.AdminAuditLogMapper;
 import com.wwp.usercenter.mapper.UserMapper;
 import com.wwp.usercenter.model.dto.CurrentUserDTO;
 import com.wwp.usercenter.model.dto.LoginResult;
@@ -27,6 +28,7 @@ import com.wwp.usercenter.model.enums.UserRole;
 import com.wwp.usercenter.model.enums.UserStatus;
 import com.wwp.usercenter.model.param.LoginParam;
 import com.wwp.usercenter.model.param.SendEmailCodeParam;
+import com.wwp.usercenter.service.AccountLifecycleService;
 import com.wwp.usercenter.service.AuthService;
 import com.wwp.usercenter.service.UserService;
 import org.junit.jupiter.api.Test;
@@ -50,8 +52,10 @@ class SecurityConfigTest {
 
   @MockitoBean private JwtTokenProvider jwtTokenProvider;
   @MockitoBean private UserMapper userMapper;
+  @MockitoBean private AdminAuditLogMapper auditLogMapper;
   @MockitoBean private AuthService authService;
   @MockitoBean private UserService userService;
+  @MockitoBean private AccountLifecycleService accountLifecycleService;
 
   @Test
   void should_return_401_when_not_authenticated() throws Exception {

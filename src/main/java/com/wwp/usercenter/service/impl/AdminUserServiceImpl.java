@@ -11,7 +11,6 @@ import com.wwp.usercenter.model.dto.UserSummaryDTO;
 import com.wwp.usercenter.model.entity.User;
 import com.wwp.usercenter.model.enums.UserStatus;
 import com.wwp.usercenter.service.AdminUserService;
-import com.wwp.usercenter.service.UserCredentialService;
 import com.wwp.usercenter.util.EmailUtils;
 import com.wwp.usercenter.util.PasswordGenerator;
 import java.util.List;
@@ -28,7 +27,7 @@ public class AdminUserServiceImpl implements AdminUserService {
   private static final int RESET_PASSWORD_LENGTH = 16;
 
   private final UserMapper userMapper;
-  private final UserCredentialService userCredentialService;
+  private final AdminUserActionWriter actionWriter;
   private final PasswordEncoder passwordEncoder;
 
   @Override
@@ -50,10 +49,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     if (target.getStatus() == status) {
       return;
     }
-    int updated = userMapper.updateStatusAndIncrementTokenVersion(target.getId(), status);
-    if (updated == 0) {
-      throw new BusinessException(ErrorCode.NOT_FOUND);
-    }
+    actionWriter.changeStatus(actorId, target, status);
     log.info(
         "admin changed user status, actorId={}, targetId={}, status={}",
         actorId,
@@ -66,8 +62,8 @@ public class AdminUserServiceImpl implements AdminUserService {
     User target = requireManageableTarget(userAccount);
     String newPassword = PasswordGenerator.generate(RESET_PASSWORD_LENGTH);
     String passwordHash = passwordEncoder.encode(newPassword);
-    // BCrypt 在事务外；updatePassword 内部只做一次短事务并自增 token_version
-    userCredentialService.updatePassword(target.getId(), passwordHash);
+    // BCrypt 在事务外；writer 的短事务里只做更新与审计
+    actionWriter.resetPassword(actorId, target, passwordHash);
     log.info("admin reset user password, actorId={}, targetId={}", actorId, target.getId());
     return new AdminPasswordResetResult(userAccount, newPassword);
   }

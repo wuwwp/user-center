@@ -32,12 +32,49 @@
           and is_delete = 0
     </select>
 
+    <select id="selectLifecycleStateById" resultType="com.wwp.usercenter.model.entity.User">
+        select id, email, role, status, is_delete, token_version
+        from `user`
+        where id = #{userId}
+    </select>
+
+    <select id="selectRecoverStateByEmail" resultType="com.wwp.usercenter.model.entity.User">
+        select id, email, role, status, is_delete, token_version
+        from `user`
+        where email = #{email}
+    </select>
+
+    <select id="selectAccountById" resultType="com.wwp.usercenter.model.entity.User">
+        select id, user_account
+        from `user`
+        where id = #{userId}
+    </select>
+
     <update id="updateStatusAndIncrementTokenVersion">
         update `user`
         set status = #{status},
             token_version = token_version + 1
         where id = #{userId}
           and is_delete = 0
+    </update>
+
+    <update id="softDeleteAccount">
+        update `user`
+        set is_delete = 1,
+            token_version = token_version + 1
+        where id = #{userId}
+          and is_delete = 0
+          and status = 0
+    </update>
+
+    <update id="recoverAccount">
+        update `user`
+        set is_delete = 0,
+            password_hash = #{passwordHash},
+            token_version = token_version + 1
+        where id = #{userId}
+          and is_delete = 1
+          and status = 0
     </update>
 
     <update id="updatePassword">

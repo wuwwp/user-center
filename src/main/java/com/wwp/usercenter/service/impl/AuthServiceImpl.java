@@ -165,6 +165,8 @@ public class AuthServiceImpl implements AuthService {
     ensureAccountUsable(user);
 
     userCredentialService.updatePassword(user.getId(), passwordEncoder.encode(param.newPassword()));
+    // 重置成功说明邮箱所有权已确认，清掉账号维度的登录失败计数
+    loginAttemptService.clearAccountFailures(email);
     log.info("password reset by email code, userId={}", user.getId());
   }
 
@@ -189,6 +191,7 @@ public class AuthServiceImpl implements AuthService {
       case REGISTER -> user == null;
       case RESET -> user != null && user.isActive();
       case RECOVER -> user != null && user.isDeleted();
+      case DELETE -> user != null && user.isActive() && user.getRole() != UserRole.ADMIN;
     };
   }
 }

@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.wwp.usercenter.config.SecurityConfig;
 import com.wwp.usercenter.controller.AdminController;
+import com.wwp.usercenter.mapper.AdminAuditLogMapper;
 import com.wwp.usercenter.mapper.UserMapper;
 import com.wwp.usercenter.model.dto.AdminPasswordResetResult;
 import com.wwp.usercenter.model.dto.PageResult;
@@ -36,6 +37,7 @@ class AdminControllerTest {
 
   @MockitoBean private JwtTokenProvider jwtTokenProvider;
   @MockitoBean private UserMapper userMapper;
+  @MockitoBean private AdminAuditLogMapper auditLogMapper;
   @MockitoBean private AdminUserService adminUserService;
 
   @Test

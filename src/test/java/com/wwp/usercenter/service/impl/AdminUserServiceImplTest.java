@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
@@ -20,7 +21,6 @@ import com.wwp.usercenter.model.entity.User;
 import com.wwp.usercenter.model.enums.DeletedFlag;
 import com.wwp.usercenter.model.enums.UserRole;
 import com.wwp.usercenter.model.enums.UserStatus;
-import com.wwp.usercenter.service.UserCredentialService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -34,7 +34,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 class AdminUserServiceImplTest {
 
   @Mock private UserMapper userMapper;
-  @Mock private UserCredentialService userCredentialService;
+  @Mock private AdminUserActionWriter actionWriter;
   @Mock private PasswordEncoder passwordEncoder;
   @InjectMocks private AdminUserServiceImpl service;
 
@@ -61,11 +61,10 @@ class AdminUserServiceImplTest {
   void should_ban_user_and_bump_token_version() {
     given(userMapper.selectAdminStateByAccount("u00000002"))
         .willReturn(user(2L, "u00000002", UserStatus.NORMAL, DeletedFlag.NOT_DELETED));
-    given(userMapper.updateStatusAndIncrementTokenVersion(2L, UserStatus.BANNED)).willReturn(1);
 
     service.changeStatus(1L, "u00000002", UserStatus.BANNED);
 
-    then(userMapper).should().updateStatusAndIncrementTokenVersion(2L, UserStatus.BANNED);
+    then(actionWriter).should().changeStatus(eq(1L), any(User.class), eq(UserStatus.BANNED));
   }
 
   @Test
@@ -77,7 +76,7 @@ class AdminUserServiceImplTest {
         .isInstanceOf(BusinessException.class)
         .extracting("errorCode")
         .isEqualTo(ErrorCode.PARAM_INVALID);
-    then(userMapper).should(never()).updateStatusAndIncrementTokenVersion(any(), any());
+    then(actionWriter).should(never()).changeStatus(any(), any(), any());
   }
 
   @Test
@@ -87,7 +86,7 @@ class AdminUserServiceImplTest {
 
     service.changeStatus(1L, "u00000002", UserStatus.BANNED);
 
-    then(userMapper).should(never()).updateStatusAndIncrementTokenVersion(any(), any());
+    then(actionWriter).should(never()).changeStatus(any(), any(), any());
   }
 
   @Test
@@ -110,7 +109,7 @@ class AdminUserServiceImplTest {
 
     assertThat(result.userAccount()).isEqualTo("u00000002");
     assertThat(result.newPassword()).matches(ValidationConstants.PASSWORD_REGEXP);
-    then(userCredentialService).should().updatePassword(2L, "new-hash");
+    then(actionWriter).should().resetPassword(eq(1L), any(User.class), eq("new-hash"));
   }
 
   @Test
@@ -121,7 +120,7 @@ class AdminUserServiceImplTest {
         .isInstanceOf(BusinessException.class)
         .extracting("errorCode")
         .isEqualTo(ErrorCode.NOT_FOUND);
-    then(userCredentialService).shouldHaveNoInteractions();
+    then(actionWriter).shouldHaveNoInteractions();
   }
 
   private static User user(long id, String account, UserStatus status, DeletedFlag deleted) {

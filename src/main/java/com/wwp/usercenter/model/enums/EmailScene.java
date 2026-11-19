@@ -9,7 +9,8 @@ import lombok.Getter;
 public enum EmailScene {
   REGISTER("register", "注册"),
   RESET("reset", "重置密码"),
-  RECOVER("recover", "恢复账号");
+  RECOVER("recover", "恢复账号"),
+  DELETE("delete", "注销账号");
 
   private final String code;
   @Getter private final String description;
