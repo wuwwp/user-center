@@ -1,5 +1,7 @@
 # user-center
 
+[![CI](https://github.com/wuwwp/user-center/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wuwwp/user-center/actions/workflows/ci.yml?query=branch%3Amain)
+
 统一认证服务：邮箱注册/登录、JWT 鉴权、验证码找回、账号状态与登录防护。单体模块化，后续可演进为 OAuth2/SSO。
 
 ## 技术栈
