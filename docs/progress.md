@@ -24,7 +24,7 @@
   - `post /api/v1/admin/users/{account}/password/reset`：16 位随机密码，仅返回一次，`token_version` 自增
   - Flyway `V2__admin_indexes.sql`；管理端按 `user_account` 查询；普通用户访问 403
   - 默认决策：已注销账号不出现在列表、不可操作；可封禁其他管理员；管理员重置后不强制改密
-- 测试：113 个单元/slice + 9 个集成（AdminFlow 1 + AuthFlow 8，Failsafe）；覆盖率行 87.6%、分支 82.0%，门槛 80%
+- 测试：111 个单元/slice + 10 个集成（AdminFlow 2 + AuthFlow 8，Failsafe，共享单例容器）；覆盖率行 87.4%、分支 81.9%，门槛 80%
 
 ## 环境
 
@@ -37,7 +37,7 @@
 
 ## 验收结果
 
-- 本机 `./mvnw verify`：113 个单元/slice 通过 + 9 个集成用例由 Failsafe 执行（无 Docker 跳过），Spotless、Checkstyle、JaCoCo 通过
+- 本机 `./mvnw verify`：111 个单元/slice 通过 + 10 个集成用例由 Failsafe 执行（无 Docker 跳过），Spotless、Checkstyle、JaCoCo 通过
 - VM Docker（2026-11-19）：Flyway V1+V2 成功；`AuthFlowIntegrationTest` 8/8、`AdminFlowIntegrationTest` 1/1 通过
 - 阶段 2：账号锁定、IP 锁定、验证码 5 次作废、弱密码不消费验证码、令牌失效、枚举一致均已验证
 - 阶段 3 本机：单元 + MockMvc 覆盖分页、掩码、封禁/解封、自封、随机密码、401/403/400

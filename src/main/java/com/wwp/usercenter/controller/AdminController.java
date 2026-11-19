@@ -1,5 +1,6 @@
 package com.wwp.usercenter.controller;
 
+import com.wwp.usercenter.common.constant.ValidationConstants;
 import com.wwp.usercenter.model.dto.AdminPasswordResetResult;
 import com.wwp.usercenter.model.dto.PageResult;
 import com.wwp.usercenter.model.dto.UserSummaryDTO;
@@ -41,14 +42,16 @@ public class AdminController {
 
   @PutMapping("/{account}/status")
   public void changeStatus(
-      @PathVariable @NotBlank @Size(max = 32) String account,
+      @PathVariable @NotBlank @Size(max = ValidationConstants.USER_ACCOUNT_MAX_LENGTH)
+          String account,
       @Valid @RequestBody AdminUserStatusParam param) {
     adminUserService.changeStatus(SecurityUtils.currentUserId(), account, param.status());
   }
 
   @PostMapping("/{account}/password/reset")
   public AdminPasswordResetResult resetPassword(
-      @PathVariable @NotBlank @Size(max = 32) String account) {
+      @PathVariable @NotBlank @Size(max = ValidationConstants.USER_ACCOUNT_MAX_LENGTH)
+          String account) {
     return adminUserService.resetPassword(SecurityUtils.currentUserId(), account);
   }
 }

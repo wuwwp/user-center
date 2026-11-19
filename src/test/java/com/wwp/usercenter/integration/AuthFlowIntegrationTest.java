@@ -19,48 +19,13 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.data.redis.core.RedisCallback;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 
 /** 真实 MySQL/Redis 下的账号闭环：注册、登录、改密、重置、登出、封禁后拒绝重置。 */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")
-class AuthFlowIntegrationTest {
+class AuthFlowIntegrationTest extends IntegrationTestSupport {
 
-  @Container @ServiceConnection
-  static final MySQLContainer<?> MYSQL =
-      new MySQLContainer<>(DockerImageName.parse("mysql:8.4")).withDatabaseName("usercenter");
-
-  @Container
-  static final GenericContainer<?> REDIS =
-      new GenericContainer<>(DockerImageName.parse("redis:7.4-alpine")).withExposedPorts(6379);
-
-  @DynamicPropertySource
-  static void registerProperties(DynamicPropertyRegistry registry) {
-    registry.add("spring.data.redis.host", REDIS::getHost);
-    registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
-    registry.add("spring.data.redis.password", () -> "");
-  }
-
-  @Autowired private MockMvc mockMvc;
-  @Autowired private StringRedisTemplate redisTemplate;
   @Autowired private UserMapper userMapper;
 
   private String email;
@@ -68,12 +33,6 @@ class AuthFlowIntegrationTest {
   @BeforeEach
   void setUp() {
     email = "it_" + UUID.randomUUID() + "@example.com";
-    redisTemplate.execute(
-        (RedisCallback<Void>)
-            connection -> {
-              connection.serverCommands().flushDb();
-              return null;
-            });
   }
 
   @Test
@@ -263,23 +222,6 @@ class AuthFlowIntegrationTest {
                     .formatted(email, code, newPassword)));
   }
 
-  private ResultActions attemptLogin(String targetEmail, String password) throws Exception {
-    return mockMvc.perform(
-        post("/api/v1/auth/login")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(
-                """
-                {"email":"%s","password":"%s"}
-                """
-                    .formatted(targetEmail, password)));
-  }
-
-  private void expectLogin(String targetEmail, String password, int code) throws Exception {
-    attemptLogin(targetEmail, password)
-        .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.code").value(code));
-  }
-
   private void expectLogin(String password, int code) throws Exception {
     expectLogin(email, password, code);
   }
@@ -308,7 +250,6 @@ class AuthFlowIntegrationTest {
   }
 
   private String login(String password) throws Exception {
-    MvcResult result = attemptLogin(email, password).andExpect(status().isOk()).andReturn();
-    return JsonPath.read(result.getResponse().getContentAsString(), "$.token");
+    return login(email, password);
   }
 }

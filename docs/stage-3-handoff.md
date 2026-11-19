@@ -51,7 +51,7 @@
 
 - 新增 `AdminController`、`AdminUserService` / `Impl`；controller 只校验参数与调用 service。
 - 请求参数：`page`（从 1 开始，默认 1）、`size`（默认 10，最大 100），可选 `status`。
-- 返回 `PageResult<UserSummaryDTO>`（新增通用分页 DTO 或放 `model/dto`），字段至少：`userAccount`、`nickname`、`emailMasked`、`role`、`status`、`isDeleted`、`createTime`、`lastLoginTime`。
+- 返回 `PageResult<UserSummaryDTO>`（新增通用分页 DTO 或放 `model/dto`），字段：`userAccount`、`nickname`、`emailMasked`、`role`、`status`、`createTime`、`lastLoginTime`。列表固定过滤未注销账号，因此不返回 `isDeleted`。
 - 使用 MyBatis-Plus `Page` + Wrapper；禁止 `select *`，只取展示列；排序固定 `id desc` 或 `create_time desc`，避免随机顺序。
 - 已注销用户是否展示先定决策：推荐默认过滤 `is_delete=0`，后续需要再加 `includeDeleted`。
 
@@ -132,5 +132,5 @@ docker run --rm --network host \
 - 封禁/解封/管理员重置后旧令牌全部失效；登录返回正确的 40103。
 - 分页有上限、邮箱掩码、无密码哈希。
 - 单元 + Web + 集成测试覆盖上述路径；本机 `./mvnw verify` 通过，覆盖率不低于 80%。
-- **已完成**：本机 113 个单元/slice 通过，行 87.6% / 分支 82.0%；VM 上 `AdminFlowIntegrationTest` 1/1、`AuthFlowIntegrationTest` 8/8 通过。
+- **已完成**：本机 111 个单元/slice 通过，行 87.4% / 分支 81.9%；VM 上 `AdminFlowIntegrationTest` 2/2、`AuthFlowIntegrationTest` 8/8 通过。
 - 进度与本文同步更新；新增取舍写入 `docs/decisions.md` §31。

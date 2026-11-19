@@ -16,7 +16,7 @@
     </select>
 
     <select id="selectAdminUserPage" resultType="com.wwp.usercenter.model.entity.User">
-        select id, user_account, nickname, email, role, status, is_delete, create_time, last_login_time
+        select user_account, nickname, email, role, status, create_time, last_login_time
         from `user`
         where is_delete = 0
         <if test="status != null">
@@ -26,9 +26,10 @@
     </select>
 
     <select id="selectAdminStateByAccount" resultType="com.wwp.usercenter.model.entity.User">
-        select id, user_account, status, is_delete, role
+        select id, status
         from `user`
         where user_account = #{account}
+          and is_delete = 0
     </select>
 
     <update id="updateStatusAndIncrementTokenVersion">

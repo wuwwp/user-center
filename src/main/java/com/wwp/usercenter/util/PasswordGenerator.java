@@ -9,11 +9,10 @@ import java.security.SecureRandom;
  */
 public final class PasswordGenerator {
 
-  private static final char[] LETTERS =
-      "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz".toCharArray();
-  private static final char[] DIGITS = "23456789".toCharArray();
-  private static final char[] SYMBOLS = "!@#$%^&*".toCharArray();
-  private static final char[] ALL = merge(LETTERS, DIGITS, SYMBOLS);
+  private static final String LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  private static final String DIGITS = "23456789";
+  private static final String SYMBOLS = "!@#$%^&*";
+  private static final String ALL = LETTERS + DIGITS + SYMBOLS;
   private static final SecureRandom RANDOM = new SecureRandom();
 
   private PasswordGenerator() {}
@@ -23,10 +22,10 @@ public final class PasswordGenerator {
       throw new IllegalArgumentException("密码长度至少为 2");
     }
     char[] password = new char[length];
-    password[0] = LETTERS[RANDOM.nextInt(LETTERS.length)];
-    password[1] = DIGITS[RANDOM.nextInt(DIGITS.length)];
+    password[0] = LETTERS.charAt(RANDOM.nextInt(LETTERS.length()));
+    password[1] = DIGITS.charAt(RANDOM.nextInt(DIGITS.length()));
     for (int i = 2; i < length; i++) {
-      password[i] = ALL[RANDOM.nextInt(ALL.length)];
+      password[i] = ALL.charAt(RANDOM.nextInt(ALL.length()));
     }
     for (int i = length - 1; i > 0; i--) {
       int j = RANDOM.nextInt(i + 1);
@@ -35,19 +34,5 @@ public final class PasswordGenerator {
       password[j] = swap;
     }
     return new String(password);
-  }
-
-  private static char[] merge(char[]... parts) {
-    int size = 0;
-    for (char[] part : parts) {
-      size += part.length;
-    }
-    char[] result = new char[size];
-    int offset = 0;
-    for (char[] part : parts) {
-      System.arraycopy(part, 0, result, offset, part.length);
-      offset += part.length;
-    }
-    return result;
   }
 }

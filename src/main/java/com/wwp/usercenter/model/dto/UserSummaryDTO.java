@@ -11,6 +11,5 @@ public record UserSummaryDTO(
     String emailMasked,
     UserRole role,
     UserStatus status,
-    boolean deleted,
     LocalDateTime createTime,
     LocalDateTime lastLoginTime) {}

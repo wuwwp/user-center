@@ -44,17 +44,6 @@ class AdminControllerTest {
   }
 
   @Test
-  void should_return_403_when_user_accesses_admin_api() throws Exception {
-    given(jwtTokenProvider.parse("user-token")).willReturn(new TokenPayload(2L, 0));
-    given(userMapper.selectAuthStateById(2L)).willReturn(user(2L, UserRole.USER));
-
-    mockMvc
-        .perform(get("/api/v1/admin/users").header("Authorization", "Bearer user-token"))
-        .andExpect(status().isForbidden())
-        .andExpect(jsonPath("$.code").value(40300));
-  }
-
-  @Test
   void should_return_user_page_for_admin() throws Exception {
     adminToken();
     given(adminUserService.listUsers(1, 10, null))
@@ -67,7 +56,6 @@ class AdminControllerTest {
                         "a***@example.com",
                         UserRole.USER,
                         UserStatus.NORMAL,
-                        false,
                         null,
                         null)),
                 1,
@@ -150,14 +138,14 @@ class AdminControllerTest {
 
   private void adminToken() {
     given(jwtTokenProvider.parse("admin-token")).willReturn(new TokenPayload(1L, 0));
-    given(userMapper.selectAuthStateById(1L)).willReturn(user(1L, UserRole.ADMIN));
+    given(userMapper.selectAuthStateById(1L)).willReturn(adminUser());
   }
 
-  private static User user(long id, UserRole role) {
+  private static User adminUser() {
     User user = new User();
-    user.setId(id);
-    user.setUserAccount("u" + id);
-    user.setRole(role);
+    user.setId(1L);
+    user.setUserAccount("u1");
+    user.setRole(UserRole.ADMIN);
     user.setStatus(UserStatus.NORMAL);
     user.setIsDelete(DeletedFlag.NOT_DELETED);
     user.setTokenVersion(0);

@@ -43,7 +43,7 @@ public class AdminUserServiceImpl implements AdminUserService {
 
   @Override
   public void changeStatus(Long actorId, String userAccount, UserStatus status) {
-    User target = requireActiveTarget(userAccount);
+    User target = requireManageableTarget(userAccount);
     if (status == UserStatus.BANNED && target.getId().equals(actorId)) {
       throw new BusinessException(ErrorCode.PARAM_INVALID, "不能封禁自己");
     }
@@ -63,18 +63,18 @@ public class AdminUserServiceImpl implements AdminUserService {
 
   @Override
   public AdminPasswordResetResult resetPassword(Long actorId, String userAccount) {
-    User target = requireActiveTarget(userAccount);
+    User target = requireManageableTarget(userAccount);
     String newPassword = PasswordGenerator.generate(RESET_PASSWORD_LENGTH);
     String passwordHash = passwordEncoder.encode(newPassword);
     // BCrypt 在事务外；updatePassword 内部只做一次短事务并自增 token_version
     userCredentialService.updatePassword(target.getId(), passwordHash);
     log.info("admin reset user password, actorId={}, targetId={}", actorId, target.getId());
-    return new AdminPasswordResetResult(target.getUserAccount(), newPassword);
+    return new AdminPasswordResetResult(userAccount, newPassword);
   }
 
-  private User requireActiveTarget(String userAccount) {
+  private User requireManageableTarget(String userAccount) {
     User user = userMapper.selectAdminStateByAccount(userAccount);
-    if (user == null || user.isDeleted()) {
+    if (user == null) {
       throw new BusinessException(ErrorCode.NOT_FOUND);
     }
     return user;
@@ -87,7 +87,6 @@ public class AdminUserServiceImpl implements AdminUserService {
         EmailUtils.mask(user.getEmail()),
         user.getRole(),
         user.getStatus(),
-        user.isDeleted(),
         user.getCreateTime(),
         user.getLastLoginTime());
   }

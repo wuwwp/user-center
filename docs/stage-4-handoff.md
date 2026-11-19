@@ -9,7 +9,7 @@
 - 管理端三个接口已完成：分页查询、封禁/解封、随机密码重置。
 - 管理员列表只取展示列、邮箱掩码；封禁/解封/重置都自增 `token_version`。
 - 普通用户访问 `/api/v1/admin/**` 返回 403；禁止管理员封禁自己。
-- 本机 `./mvnw verify`：113 个单元/slice 通过 + 9 个集成用例由 Failsafe 执行（本机无 Docker 跳过）；覆盖率行 87.6% / 分支 82.0%。
+- 本机 `./mvnw verify`：111 个单元/slice 通过 + 10 个集成用例由 Failsafe 执行（本机无 Docker 跳过）；覆盖率行 87.4% / 分支 81.9%。
 - 阶段 3 集成测试已在 VM 通过：`AdminFlowIntegrationTest` 1/1、`AuthFlowIntegrationTest` 8/8。
 
 ## 2. 当前 Git / 工作区状态

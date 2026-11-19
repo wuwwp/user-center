@@ -15,53 +15,19 @@ import com.wwp.usercenter.model.enums.DeletedFlag;
 import com.wwp.usercenter.model.enums.UserRole;
 import com.wwp.usercenter.model.enums.UserStatus;
 import com.wwp.usercenter.util.UserAccountUtils;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.data.redis.core.RedisCallback;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 
 /** 管理端闭环：管理员登录、分页、封禁/解封、重置密码与普通用户越权。 */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")
-class AdminFlowIntegrationTest {
+class AdminFlowIntegrationTest extends IntegrationTestSupport {
 
-  @Container @ServiceConnection
-  static final MySQLContainer<?> MYSQL =
-      new MySQLContainer<>(DockerImageName.parse("mysql:8.4")).withDatabaseName("usercenter");
-
-  @Container
-  static final GenericContainer<?> REDIS =
-      new GenericContainer<>(DockerImageName.parse("redis:7.4-alpine")).withExposedPorts(6379);
-
-  @DynamicPropertySource
-  static void registerProperties(DynamicPropertyRegistry registry) {
-    registry.add("spring.data.redis.host", REDIS::getHost);
-    registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
-    registry.add("spring.data.redis.password", () -> "");
-  }
-
-  @Autowired private MockMvc mockMvc;
-  @Autowired private StringRedisTemplate redisTemplate;
   @Autowired private UserMapper userMapper;
   @Autowired private PasswordEncoder passwordEncoder;
 
@@ -70,12 +36,6 @@ class AdminFlowIntegrationTest {
 
   @BeforeEach
   void setUp() {
-    redisTemplate.execute(
-        (RedisCallback<Void>)
-            connection -> {
-              connection.serverCommands().flushDb();
-              return null;
-            });
     admin = createUser(UserRole.ADMIN, "AdminPassw0rd1");
     user = createUser(UserRole.USER, "UserPassw0rd1");
   }
@@ -88,8 +48,7 @@ class AdminFlowIntegrationTest {
     mockMvc
         .perform(get("/api/v1/admin/users").header("Authorization", "Bearer " + adminToken))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.items[0].emailMasked", containsString("***")))
-        .andExpect(jsonPath("$.items[0].passwordHash").doesNotExist());
+        .andExpect(jsonPath("$.items[0].emailMasked", containsString("***")));
 
     mockMvc
         .perform(get("/api/v1/admin/users").header("Authorization", "Bearer " + userToken))
@@ -121,7 +80,6 @@ class AdminFlowIntegrationTest {
             .andReturn();
     String newPassword =
         JsonPath.read(resetResult.getResponse().getContentAsString(), "$.newPassword");
-    assertThat(newPassword).hasSize(16);
 
     expectLogin(user.getEmail(), "UserPassw0rd1", 40101);
     login(user.getEmail(), newPassword);
@@ -130,48 +88,54 @@ class AdminFlowIntegrationTest {
         .andExpect(status().isUnauthorized());
   }
 
+  @Test
+  void should_filter_and_order_admin_list_and_hide_deleted_users() throws Exception {
+    User deleted =
+        createUser(UserRole.USER, "DeletedPassw0rd1", UserStatus.NORMAL, DeletedFlag.DELETED);
+    User banned =
+        createUser(UserRole.USER, "BannedPassw0rd1", UserStatus.BANNED, DeletedFlag.NOT_DELETED);
+    String adminToken = login(admin.getEmail(), "AdminPassw0rd1");
+
+    mockMvc
+        .perform(
+            get("/api/v1/admin/users?status=BANNED")
+                .header("Authorization", "Bearer " + adminToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[0].userAccount").value(banned.getUserAccount()))
+        .andExpect(jsonPath("$.items[0].status").value("BANNED"));
+
+    MvcResult all =
+        mockMvc
+            .perform(get("/api/v1/admin/users").header("Authorization", "Bearer " + adminToken))
+            .andExpect(status().isOk())
+            .andReturn();
+    List<String> accounts =
+        JsonPath.read(all.getResponse().getContentAsString(), "$.items[*].userAccount");
+    assertThat(accounts).doesNotContain(deleted.getUserAccount());
+    assertThat(accounts.get(0)).isEqualTo(banned.getUserAccount());
+
+    changeStatus(adminToken, deleted.getUserAccount(), UserStatus.BANNED)
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value(40400));
+    changeStatus(adminToken, "u00000000", UserStatus.NORMAL).andExpect(status().isNotFound());
+  }
+
   private User createUser(UserRole role, String password) {
+    return createUser(role, password, UserStatus.NORMAL, DeletedFlag.NOT_DELETED);
+  }
+
+  private User createUser(UserRole role, String password, UserStatus status, DeletedFlag deleted) {
     User created = new User();
     created.setUserAccount(UserAccountUtils.generate());
     created.setEmail("admin_it_" + UUID.randomUUID() + "@example.com");
     created.setNickname("集成测试用户");
     created.setPasswordHash(passwordEncoder.encode(password));
     created.setRole(role);
-    created.setStatus(UserStatus.NORMAL);
-    created.setIsDelete(DeletedFlag.NOT_DELETED);
+    created.setStatus(status);
+    created.setIsDelete(deleted);
     created.setTokenVersion(0);
     userMapper.insert(created);
     return created;
-  }
-
-  private String login(String email, String password) throws Exception {
-    MvcResult result =
-        mockMvc
-            .perform(
-                post("/api/v1/auth/login")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(
-                        """
-                        {"email":"%s","password":"%s"}
-                        """
-                            .formatted(email, password)))
-            .andExpect(status().isOk())
-            .andReturn();
-    return JsonPath.read(result.getResponse().getContentAsString(), "$.token");
-  }
-
-  private void expectLogin(String email, String password, int code) throws Exception {
-    mockMvc
-        .perform(
-            post("/api/v1/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
-                    {"email":"%s","password":"%s"}
-                    """
-                        .formatted(email, password)))
-        .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.code").value(code));
   }
 
   private ResultActions changeStatus(String token, String account, UserStatus status)

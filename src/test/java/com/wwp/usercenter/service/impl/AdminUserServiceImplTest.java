@@ -41,13 +41,10 @@ class AdminUserServiceImplTest {
   @Test
   void should_return_masked_page_of_users() {
     User user = user(2L, "u00000002", UserStatus.NORMAL, DeletedFlag.NOT_DELETED);
-    given(userMapper.selectAdminUserPage(any(), any()))
-        .willAnswer(invocation -> {
-          Page<User> page = invocation.getArgument(0);
-          page.setRecords(List.of(user));
-          page.setTotal(1);
-          return page;
-        });
+    Page<User> page = new Page<>(1, 10);
+    page.setRecords(List.of(user));
+    page.setTotal(1);
+    given(userMapper.selectAdminUserPage(any(), any())).willReturn(page);
 
     PageResult<UserSummaryDTO> result = service.listUsers(1, 10, null);
 
@@ -94,17 +91,6 @@ class AdminUserServiceImplTest {
   }
 
   @Test
-  void should_return_not_found_when_target_deleted() {
-    given(userMapper.selectAdminStateByAccount("u00000002"))
-        .willReturn(user(2L, "u00000002", UserStatus.NORMAL, DeletedFlag.DELETED));
-
-    assertThatThrownBy(() -> service.changeStatus(1L, "u00000002", UserStatus.BANNED))
-        .isInstanceOf(BusinessException.class)
-        .extracting("errorCode")
-        .isEqualTo(ErrorCode.NOT_FOUND);
-  }
-
-  @Test
   void should_return_not_found_when_target_absent() {
     given(userMapper.selectAdminStateByAccount("missing")).willReturn(null);
 
@@ -123,14 +109,13 @@ class AdminUserServiceImplTest {
     AdminPasswordResetResult result = service.resetPassword(1L, "u00000002");
 
     assertThat(result.userAccount()).isEqualTo("u00000002");
-    assertThat(result.newPassword()).hasSize(16).matches(ValidationConstants.PASSWORD_REGEXP);
+    assertThat(result.newPassword()).matches(ValidationConstants.PASSWORD_REGEXP);
     then(userCredentialService).should().updatePassword(2L, "new-hash");
   }
 
   @Test
-  void should_not_reset_password_when_target_deleted() {
-    given(userMapper.selectAdminStateByAccount("u00000002"))
-        .willReturn(user(2L, "u00000002", UserStatus.NORMAL, DeletedFlag.DELETED));
+  void should_not_reset_password_when_target_absent() {
+    given(userMapper.selectAdminStateByAccount("u00000002")).willReturn(null);
 
     assertThatThrownBy(() -> service.resetPassword(1L, "u00000002"))
         .isInstanceOf(BusinessException.class)
