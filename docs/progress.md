@@ -2,7 +2,7 @@
 
 更新日期：2026-11-19
 设计文档版本：v0.19
-当前阶段：阶段 3 管理员已实现；VM 集成测试待补；阶段 4 待开始
+当前阶段：阶段 3 管理员完成（本机 + VM）；阶段 4 待开始
 
 ## 项目定位（护栏）
 
@@ -29,7 +29,7 @@
 ## 环境
 
 - 本机：Windows 11、JDK 21（`D:\dev\jdk-21`）、Node 24；本机无 Docker
-- 开发虚拟机 `ssh user-center-vm`（192.168.216.130）：**2026-11-19 连接超时，待开机/排查**
+- 开发虚拟机 `ssh user-center-vm`（192.168.216.130）：Docker 29.9.2
   - MySQL 8.4.13、Redis 7.4；开发启动：`docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d mysql redis`
   - 生产只启动 `docker compose up -d`，Nginx 使用 `deploy/nginx/certs` 下的证书
 - 种子管理员：`admin0001` / `admin@user-center.local`，仅 dev profile 创建，密码见本地 `docs/decisions.md`
@@ -38,7 +38,7 @@
 ## 验收结果
 
 - 本机 `./mvnw verify`：113 个单元/slice 通过 + 9 个集成用例由 Failsafe 执行（无 Docker 跳过），Spotless、Checkstyle、JaCoCo 通过
-- VM Docker（2026-11-18）：`AuthFlowIntegrationTest` 8/8 通过，Flyway V1 成功；**阶段 3 的 AdminFlowIntegrationTest 待 VM 恢复后重跑**
+- VM Docker（2026-11-19）：Flyway V1+V2 成功；`AuthFlowIntegrationTest` 8/8、`AdminFlowIntegrationTest` 1/1 通过
 - 阶段 2：账号锁定、IP 锁定、验证码 5 次作废、弱密码不消费验证码、令牌失效、枚举一致均已验证
 - 阶段 3 本机：单元 + MockMvc 覆盖分页、掩码、封禁/解封、自封、随机密码、401/403/400
 
@@ -60,7 +60,6 @@
 
 ## 待确认 / 阻塞
 
-- **VM 192.168.216.130 连接超时**：需开机或检查网络；阶段 3 集成测试待补
 - **GitHub Actions 被账号级禁用**：Support 工单 #5026657 等待回复；workflow 已在 `.github/workflows/ci.yml`
 - 管理员操作审计表尚未实现（建议阶段 4 一并做 Flyway V3）
 - 后续优化：Lua 原子化 `INCR + EXPIRE`、验证码 `GET + DEL`（见 `docs/decisions.md` §28）

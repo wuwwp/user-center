@@ -10,13 +10,13 @@
 - 管理员列表只取展示列、邮箱掩码；封禁/解封/重置都自增 `token_version`。
 - 普通用户访问 `/api/v1/admin/**` 返回 403；禁止管理员封禁自己。
 - 本机 `./mvnw verify`：113 个单元/slice 通过 + 9 个集成用例由 Failsafe 执行（本机无 Docker 跳过）；覆盖率行 87.6% / 分支 82.0%。
-- **VM 192.168.216.130 在 2026-11-19 连接超时**；`AdminFlowIntegrationTest` 待虚拟机恢复后补跑。
+- 阶段 3 集成测试已在 VM 通过：`AdminFlowIntegrationTest` 1/1、`AuthFlowIntegrationTest` 8/8。
 
 ## 2. 当前 Git / 工作区状态
 
 - 阶段 3 已合回 `main`；`CLAUDE.md` 已提交。
 - `docs/decisions.md` 是本地文件（gitignore），阶段 3 取舍见 §31。
-- 应用当前未运行；VM 上 MySQL/Redis 容器状态未知。
+- 应用当前未运行；VM 上 MySQL/Redis 容器可用。
 - 阶段 4 代码尚未开始。
 
 ## 3. 阶段 4 范围
@@ -124,5 +124,5 @@ docker run --rm --network host \
 - 恢复需要 RECOVER 场景验证码 + 新密码，恢复后旧令牌失效。
 - 管理员不能自助注销；封禁账号不能自助恢复；已注销账号不出现在管理员列表。
 - 单元 + Web + 集成测试覆盖；本机 `./mvnw verify` 与 VM Docker 集成测试通过，覆盖率不低于 80%。
-- 阶段 3 的 `AdminFlowIntegrationTest` 在 VM 补跑通过。
+- 阶段 3 的 `AdminFlowIntegrationTest` 已在 VM 通过（1/1）。
 - 进度与本文同步更新；新增取舍写入 `docs/decisions.md`。

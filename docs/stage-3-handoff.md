@@ -1,6 +1,6 @@
 # 阶段 3 交接：管理员功能
 
-> **状态：已完成（2026-11-19）。** 本机单元/MockMvc 测试通过；VM 集成测试待虚拟机恢复后补跑。下一阶段见 `docs/stage-4-handoff.md`。
+> **状态：已完成（2026-11-19）。** 本机单元/MockMvc 与 VM 集成测试均通过。下一阶段见 `docs/stage-4-handoff.md`。
 >
 > 更新日期：2026-11-19
 > 读者：下一个会话的 AI / 开发者
@@ -19,14 +19,14 @@
 - Flyway 管理表结构；开发种子在 `db/dev`，生产不创建默认管理员。
 - 邮件由有界线程池异步投递，请求线程不再等待 SMTP。
 - 本机 `./mvnw verify`：94 个单元/slice 用例通过 + 8 个 Testcontainers 用例由 Failsafe 执行（无 Docker 时跳过）；覆盖率门槛 80%。
-- VM Docker 集成测试（2026-11-17）：`AuthFlowIntegrationTest` 8 个用例全部通过，`BUILD SUCCESS`。
+- VM Docker 集成测试（2026-11-19）：Flyway V1+V2 成功；`AuthFlowIntegrationTest` 8/8、`AdminFlowIntegrationTest` 1/1 通过，`BUILD SUCCESS`。
 
 ## 2. 当前 Git / 工作区状态
 
 - 阶段 2、生产化与阶段 3 已合并到 `main`（提交见 `git log`）。
 - `CLAUDE.md` 已提交；工作区以 `git status` 为准。
 - `docs/decisions.md` 是本地文件（gitignore），阶段 3 取舍见 §31，不提交。
-- 应用当前未运行；**VM 192.168.216.130 在 2026-11-19 连接超时**，阶段 3 集成测试待补。
+- 应用当前未运行；VM 192.168.216.130 已恢复，MySQL/Redis 容器可用。
 
 ## 3. 阶段 3 范围
 
@@ -132,5 +132,5 @@ docker run --rm --network host \
 - 封禁/解封/管理员重置后旧令牌全部失效；登录返回正确的 40103。
 - 分页有上限、邮箱掩码、无密码哈希。
 - 单元 + Web + 集成测试覆盖上述路径；本机 `./mvnw verify` 通过，覆盖率不低于 80%。
-- **本机已完成**：113 个单元/slice 通过，行 87.6% / 分支 82.0%；`AdminFlowIntegrationTest` 待 VM 恢复后重跑。
+- **已完成**：本机 113 个单元/slice 通过，行 87.6% / 分支 82.0%；VM 上 `AdminFlowIntegrationTest` 1/1、`AuthFlowIntegrationTest` 8/8 通过。
 - 进度与本文同步更新；新增取舍写入 `docs/decisions.md` §31。
