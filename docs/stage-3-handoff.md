@@ -1,6 +1,6 @@
 # 阶段 3 交接：管理员功能
 
-> **状态：已完成（2026-11-19）。** 本机单元/MockMvc 与 VM 集成测试均通过。下一阶段见 `docs/stage-4-handoff.md`。
+> **状态：已完成（2026-11-19）。** 本机单元/MockMvc、VM 集成测试与 GitHub Actions 均通过。下一阶段见 `docs/stage-4-handoff.md`。
 >
 > 更新日期：2026-11-19
 > 读者：下一个会话的 AI / 开发者
@@ -19,7 +19,8 @@
 - Flyway 管理表结构；开发种子在 `db/dev`，生产不创建默认管理员。
 - 邮件由有界线程池异步投递，请求线程不再等待 SMTP。
 - 本机 `./mvnw verify`：94 个单元/slice 用例通过 + 8 个 Testcontainers 用例由 Failsafe 执行（无 Docker 时跳过）；覆盖率门槛 80%。
-- VM Docker 集成测试（2026-11-19）：Flyway V1+V2 成功；`AuthFlowIntegrationTest` 8/8、`AdminFlowIntegrationTest` 1/1 通过，`BUILD SUCCESS`。
+- VM Docker 集成测试（2026-11-19）：Flyway V1+V2 成功；`AuthFlowIntegrationTest` 8/8、`AdminFlowIntegrationTest` 2/2 通过，`BUILD SUCCESS`。
+- GitHub Actions（2026-11-19）：`CI` workflow 连续通过（最新 run `44524605319`），111 单元/slice + 10 集成 + Spotless/Checkstyle/JaCoCo 全绿。
 
 ## 2. 当前 Git / 工作区状态
 
@@ -44,6 +45,8 @@
 - 管理端返回邮箱做掩码（`EmailUtils.mask`），不返回密码哈希。
 
 不包含：细粒度 RBAC、操作审计表、批量操作、导出、管理员账号创建（仍由初始化脚本/运维 SQL 产生）。
+
+阶段 3 业务范围已完成。未完成/延期项只有管理员操作审计表（Flyway V3），建议与阶段 4 一并决定；Redis `INCR + EXPIRE` 与验证码 `GET + DEL` 的原子化属后续优化。
 
 ## 4. 建议落点
 

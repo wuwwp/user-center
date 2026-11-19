@@ -10,14 +10,23 @@
 - 管理员列表只取展示列、邮箱掩码；封禁/解封/重置都自增 `token_version`。
 - 普通用户访问 `/api/v1/admin/**` 返回 403；禁止管理员封禁自己。
 - 本机 `./mvnw verify`：111 个单元/slice 通过 + 10 个集成用例由 Failsafe 执行（本机无 Docker 跳过）；覆盖率行 87.4% / 分支 81.9%。
-- 阶段 3 集成测试已在 VM 通过：`AdminFlowIntegrationTest` 1/1、`AuthFlowIntegrationTest` 8/8。
+- 阶段 3 集成测试已在 VM 通过：`AdminFlowIntegrationTest` 2/2、`AuthFlowIntegrationTest` 8/8。
+- GitHub Actions 已恢复并连续通过：最新 run `44524605319`，111 单元/slice + 10 集成 + Spotless/Checkstyle/JaCoCo 全绿。
+
+## 1.1 阶段 3 未完成项
+
+- 三个管理接口与测试均已完成，业务接口没有未完成项。
+- 管理员操作审计表未实现（阶段 3 明确延期），建议本阶段用 Flyway V3 一并做。
+- Redis `INCR + EXPIRE` Lua 原子化、验证码 `GET + DEL` 原子化尚未做，属于已知优化（decisions §28）。
+- 前端、部署、TLS 证书属于阶段 5/6，不是阶段 3 缺口。
+- `SecurityConfig` 已预留 `POST /api/v1/users/me/recover` 为 `permitAll`，但 Controller 尚未实现，属于本阶段范围。
 
 ## 2. 当前 Git / 工作区状态
 
 - 阶段 3 已合回 `main`；`CLAUDE.md` 已提交。
 - `docs/decisions.md` 是本地文件（gitignore），阶段 3 取舍见 §31。
 - 应用当前未运行；VM 上 MySQL/Redis 容器可用。
-- 阶段 4 代码尚未开始。
+- 阶段 4 代码尚未开始；`main` 工作区干净，CI 绿。
 
 ## 3. 阶段 4 范围
 
@@ -72,6 +81,7 @@
 
 - `EmailScene.RECOVER` 已存在，发码场景隔离和失败次数限制沿用阶段 2。
 - 恢复接口公开，受发码限频和验证码失败次数保护；不需要额外 IP 限流，但可复用 `ClientIpResolver` 记录。
+- `SecurityConfig` 已预留 `POST /api/v1/users/me/recover` 为 `permitAll`，但 Controller 尚未实现，属于本阶段范围。
 - 注销/恢复都写审计日志（如果阶段 3 的审计表还没做，可在本阶段补 Flyway V3）。
 
 ## 5. 阶段 1–3 留下的护栏
@@ -124,5 +134,5 @@ docker run --rm --network host \
 - 恢复需要 RECOVER 场景验证码 + 新密码，恢复后旧令牌失效。
 - 管理员不能自助注销；封禁账号不能自助恢复；已注销账号不出现在管理员列表。
 - 单元 + Web + 集成测试覆盖；本机 `./mvnw verify` 与 VM Docker 集成测试通过，覆盖率不低于 80%。
-- 阶段 3 的 `AdminFlowIntegrationTest` 已在 VM 通过（1/1）。
+- 阶段 3 的 `AdminFlowIntegrationTest` 已在 VM 通过（2/2），CI 也已跑通。
 - 进度与本文同步更新；新增取舍写入 `docs/decisions.md`。

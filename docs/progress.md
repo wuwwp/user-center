@@ -2,7 +2,7 @@
 
 更新日期：2026-11-19
 设计文档版本：v0.19
-当前阶段：阶段 3 管理员完成（本机 + VM）；阶段 4 待开始
+当前阶段：阶段 3 管理员已完成（本机 + VM + CI）；阶段 4 待开始
 
 ## 项目定位（护栏）
 
@@ -24,7 +24,7 @@
   - `post /api/v1/admin/users/{account}/password/reset`：16 位随机密码，仅返回一次，`token_version` 自增
   - Flyway `V2__admin_indexes.sql`；管理端按 `user_account` 查询；普通用户访问 403
   - 默认决策：已注销账号不出现在列表、不可操作；可封禁其他管理员；管理员重置后不强制改密
-- 测试：111 个单元/slice + 10 个集成（AdminFlow 2 + AuthFlow 8，Failsafe，共享单例容器）；覆盖率行 87.4%、分支 81.9%，门槛 80%
+- 测试：111 个单元/slice + 10 个集成（AdminFlow 2 + AuthFlow 8，Failsafe，共享单例容器）；覆盖率门槛 80% 通过（完整运行行 87.4%、分支 81.9%）
 
 ## 环境
 
@@ -38,7 +38,8 @@
 ## 验收结果
 
 - 本机 `./mvnw verify`：111 个单元/slice 通过 + 10 个集成用例由 Failsafe 执行（无 Docker 跳过），Spotless、Checkstyle、JaCoCo 通过
-- VM Docker（2026-11-19）：Flyway V1+V2 成功；`AuthFlowIntegrationTest` 8/8、`AdminFlowIntegrationTest` 1/1 通过
+- VM Docker（2026-11-19）：Flyway V1+V2 成功；`AuthFlowIntegrationTest` 8/8、`AdminFlowIntegrationTest` 2/2 通过
+- GitHub Actions（2026-11-19）：`CI` workflow 连续通过；最新 run `44524605319` 在 Ubuntu runner 上完成 111 个单元/slice + 10 个集成测试（Testcontainers），Spotless、Checkstyle、JaCoCo 通过
 - 阶段 2：账号锁定、IP 锁定、验证码 5 次作废、弱密码不消费验证码、令牌失效、枚举一致均已验证
 - 阶段 3 本机：单元 + MockMvc 覆盖分页、掩码、封禁/解封、自封、随机密码、401/403/400
 
@@ -47,7 +48,7 @@
 1. `delete /api/v1/users/me`：逻辑注销，自增 `token_version`；管理员不可自助注销
 2. `post /api/v1/users/me/recover`：邮箱验证码 + 新密码，恢复后自增 `token_version`
 3. 状态语义：注销后登录 40104；恢复场景验证码 `verify:recover`；封禁账号不可恢复
-4. 阶段 3 补测：VM Docker 跑 `AdminFlowIntegrationTest`；管理员操作审计表（V3）留作后续
+4. 阶段 3 遗留：管理员操作审计表（Flyway V3）是否与阶段 4 一并做；业务接口本身无未完成项
 5. 测试：注销/恢复闭环、旧令牌失效、验证码场景隔离、管理员接口不操作已注销账号
 
 ## 交接
@@ -55,12 +56,14 @@
 - 新会话先读本文件与 `docs/stage-4-handoff.md`，再按需读 `docs/plan.md` §7、§8、§11
 - 阶段 4 改动账号状态后，在 VM Docker 跑 `mvn -B -Dit.test=AdminFlowIntegrationTest,AuthFlowIntegrationTest verify`
 - Git：阶段 3 已合回 `main`；`CLAUDE.md` 已提交；工作区应以 `git status` 为准
+- CI：`gh run list -R wuwwp/user-center -L 3`；`main` 应为绿灯；workflow 在 `.github/workflows/ci.yml`
 - 课程文件在 `D:\teach\user-center-spring-security`（本地，不提交仓库）
 - 关键约束：JWT 不含 role；改密/登出/封禁/恢复/角色变更/管理员重置必须自增 `token_version`
 
 ## 待确认 / 阻塞
 
-- **GitHub 账号限制已解除**（2026-11-19，Support 工单 #5026657）；CI 首跑通过（run 44524281047）
+- 阶段 3 业务接口无未完成项；GitHub Actions 已恢复并连续通过（最新 run 44524605319）
 - 管理员操作审计表尚未实现（建议阶段 4 一并做 Flyway V3）
+- CI workflow 仍使用 `actions/checkout@v4` / `actions/setup-java@v4`，有 Node 20 弃用警告；升级 v5 需要 `workflow` scope 或网页编辑
 - 后续优化：Lua 原子化 `INCR + EXPIRE`、验证码 `GET + DEL`（见 `docs/decisions.md` §28）
 - 云服务器规格未定；前端 `web/` 尚未实现（阶段 5），Nginx TLS 证书需部署时生成或申请
