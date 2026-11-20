@@ -43,7 +43,7 @@
 - 后端本机 `./mvnw verify`：130 个单元/slice 通过 + 13 个集成用例（无 Docker 跳过）
 - 后端 CI run `44539442887`：130 + 13 通过；Flyway V1–V3、Spotless、Checkstyle、JaCoCo 通过
 - 前端：`npm run lint`、`npm run test:unit`（5/5）、`npm run build` 通过
-- 前端页面：登录/注册/找回/恢复、个人中心、管理后台已在本地 Vite 联调验证；管理端重置密码弹窗只显示一次
+- 前端页面：登录/注册/找回/恢复、个人中心、管理后台已在本地 Vite + mock 接口验证；管理端重置密码弹窗只显示一次
 
 ## 下一步（阶段 6 收尾）
 
