@@ -234,9 +234,7 @@ onMounted(async () => {
     </section>
 
     <el-dialog v-model="deleteDialogVisible" title="注销账号" width="min(92vw, 460px)">
-      <p class="dialog-warning">
-        注销后账号无法登录，只能通过邮箱验证码恢复。请先获取注销验证码。
-      </p>
+      <p class="dialog-warning">注销后账号无法登录，只能通过邮箱验证码恢复。请先获取注销验证码。</p>
       <el-form label-position="top" @submit.prevent="handleDelete">
         <el-form-item label="注销验证码">
           <div class="code-row">

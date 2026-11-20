@@ -300,9 +300,7 @@ watch(() => route.query.tab, applyTabFromQuery)
               >
                 登录
               </el-button>
-              <p class="form-hint">
-                忘记密码？切换到“忘记密码”。账号已注销？切换到“恢复账号”。
-              </p>
+              <p class="form-hint">忘记密码？切换到“忘记密码”。账号已注销？切换到“恢复账号”。</p>
             </el-form>
           </el-tab-pane>
 

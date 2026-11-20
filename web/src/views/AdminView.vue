@@ -239,9 +239,7 @@ onMounted(loadUsers)
       @closed="closeResetDialog"
     >
       <template v-if="resetResult">
-        <p class="dialog-lead">
-          请立即把下面的临时密码交给用户。关闭弹窗后将无法再次查看。
-        </p>
+        <p class="dialog-lead">请立即把下面的临时密码交给用户。关闭弹窗后将无法再次查看。</p>
         <el-form label-position="top">
           <el-form-item label="账号">
             <el-input :model-value="resetResult.userAccount" readonly />

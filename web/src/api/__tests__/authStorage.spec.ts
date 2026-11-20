@@ -1,10 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import {
-  clearToken,
-  getToken,
-  isSafeInternalPath,
-  setToken,
-} from '../authStorage'
+import { clearToken, getToken, isSafeInternalPath, setToken } from '../authStorage'
 
 describe('authStorage', () => {
   beforeEach(() => {
