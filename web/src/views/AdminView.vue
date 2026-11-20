@@ -3,8 +3,9 @@ import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AppShell from '@/layouts/AppShell.vue'
 import { changeUserStatus, listUsers, resetUserPassword } from '@/api/admin'
-import { ApiError } from '@/api/http'
+import { notifyApiError } from '@/api/errors'
 import type { AdminPasswordResetResult, UserStatus, UserSummary } from '@/api/types'
+import { roleLabel, statusLabel } from '@/labels'
 
 const loading = ref(false)
 const rows = ref<UserSummary[]>([])
@@ -17,10 +18,6 @@ const resetDialogVisible = ref(false)
 const resetResult = ref<AdminPasswordResetResult | null>(null)
 const resetLoadingAccount = ref<string | null>(null)
 
-function showError(error: unknown, fallback: string): void {
-  ElMessage.error(error instanceof ApiError ? error.message : fallback)
-}
-
 async function loadUsers(): Promise<void> {
   loading.value = true
   try {
@@ -31,10 +28,8 @@ async function loadUsers(): Promise<void> {
     })
     rows.value = result.items
     total.value = result.total
-    page.value = result.page
-    size.value = result.size
   } catch (error) {
-    showError(error, '加载用户列表失败')
+    notifyApiError(error, '加载用户列表失败')
   } finally {
     loading.value = false
   }
@@ -74,7 +69,7 @@ async function toggleStatus(row: UserSummary): Promise<void> {
     ElMessage.success(`${action}成功`)
     await loadUsers()
   } catch (error) {
-    showError(error, `${action}失败`)
+    notifyApiError(error, `${action}失败`)
   }
 }
 
@@ -94,7 +89,7 @@ async function resetPassword(row: UserSummary): Promise<void> {
     resetResult.value = await resetUserPassword(row.userAccount)
     resetDialogVisible.value = true
   } catch (error) {
-    showError(error, '重置密码失败')
+    notifyApiError(error, '重置密码失败')
   } finally {
     resetLoadingAccount.value = null
   }
@@ -115,21 +110,19 @@ function closeResetDialog(): void {
   resetResult.value = null
 }
 
+const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+})
+
 function formatDate(value: string | null): string {
   if (!value) return '—'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date)
-}
-
-function statusLabel(status: UserStatus): string {
-  return status === 'BANNED' ? '封禁' : '正常'
+  return dateFormatter.format(date)
 }
 
 onMounted(loadUsers)
@@ -180,7 +173,7 @@ onMounted(loadUsers)
         <el-table-column label="角色" width="100">
           <template #default="{ row }">
             <el-tag :type="row.role === 'ADMIN' ? 'success' : 'info'" effect="plain">
-              {{ row.role === 'ADMIN' ? '管理员' : '普通用户' }}
+              {{ roleLabel(row.role) }}
             </el-tag>
           </template>
         </el-table-column>

@@ -1,6 +1,7 @@
 package com.wwp.usercenter.config;
 
 import com.wwp.usercenter.mapper.UserMapper;
+import com.wwp.usercenter.model.enums.UserRole;
 import com.wwp.usercenter.security.JwtAuthenticationFilter;
 import com.wwp.usercenter.security.JwtTokenProvider;
 import com.wwp.usercenter.security.RestAccessDeniedHandler;
@@ -61,7 +62,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/users/me/recover")
                 .permitAll()
                 .requestMatchers("/api/v1/admin/**")
-                .hasRole("ADMIN")
+                .hasRole(UserRole.ADMIN.name())
                 .requestMatchers(
                     "/actuator/health",
                     "/actuator/info",

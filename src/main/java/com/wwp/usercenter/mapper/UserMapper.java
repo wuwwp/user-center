@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.wwp.usercenter.model.entity.User;
 import com.wwp.usercenter.model.enums.UserStatus;
+import java.util.List;
 import org.apache.ibatis.annotations.Param;
 
 public interface UserMapper extends BaseMapper<User> {
@@ -26,8 +27,8 @@ public interface UserMapper extends BaseMapper<User> {
   /** 恢复前按邮箱读取状态列，不加载密码哈希。 */
   User selectRecoverStateByEmail(@Param("email") String email);
 
-  /** 审计写入时读取账号快照。 */
-  User selectAccountById(@Param("userId") Long userId);
+  /** 审计写入时一次读取操作者与目标的账号快照。 */
+  List<User> selectAccountsByIds(@Param("ids") List<Long> ids);
 
   /** 管理端原子更新状态并自增令牌版本。 */
   int updateStatusAndIncrementTokenVersion(

@@ -3,6 +3,7 @@ package com.wwp.usercenter.security;
 import com.wwp.usercenter.model.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.UnsupportedJwtException;
 import io.jsonwebtoken.io.Decoders;
@@ -29,6 +30,7 @@ public class JwtTokenProvider {
 
   private final SecretKey key;
   private final Clock clock;
+  private final JwtParser parser;
   @Getter private final Duration expiration;
 
   public JwtTokenProvider(JwtProperties properties, Clock clock) {
@@ -47,6 +49,8 @@ public class JwtTokenProvider {
     this.key = Keys.hmacShaKeyFor(secret);
     this.clock = clock;
     this.expiration = properties.expiration();
+    this.parser =
+        Jwts.parser().verifyWith(key).requireIssuer(ISSUER).requireAudience(AUDIENCE).build();
   }
 
   public String createToken(User user) {
@@ -66,13 +70,7 @@ public class JwtTokenProvider {
   }
 
   public TokenPayload parse(String token) {
-    Jws<Claims> jws =
-        Jwts.parser()
-            .verifyWith(key)
-            .requireIssuer(ISSUER)
-            .requireAudience(AUDIENCE)
-            .build()
-            .parseSignedClaims(token);
+    Jws<Claims> jws = parser.parseSignedClaims(token);
     if (!Jwts.SIG.HS256.getId().equals(jws.getHeader().getAlgorithm())) {
       throw new UnsupportedJwtException("JWT 算法必须为 HS256");
     }

@@ -1,5 +1,6 @@
 package com.wwp.usercenter.controller;
 
+import com.wwp.usercenter.config.OpenApiConfig;
 import com.wwp.usercenter.model.dto.CurrentUserDTO;
 import com.wwp.usercenter.model.param.ChangePasswordParam;
 import com.wwp.usercenter.model.param.DeleteAccountParam;
@@ -18,7 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@SecurityRequirement(name = "bearerAuth")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor

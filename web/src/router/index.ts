@@ -41,12 +41,10 @@ router.beforeEach(async (to) => {
     if (!auth.token) {
       return { name: 'login', query: { returnUrl: to.fullPath } }
     }
-    if (!auth.user) {
-      try {
-        await auth.fetchCurrentUser()
-      } catch {
-        return { name: 'login', query: { returnUrl: to.fullPath } }
-      }
+    try {
+      await auth.ensureUser()
+    } catch {
+      return { name: 'login', query: { returnUrl: to.fullPath } }
     }
   }
 
@@ -55,16 +53,12 @@ router.beforeEach(async (to) => {
   }
 
   if (to.name === 'login' && auth.token) {
-    if (!auth.user) {
-      try {
-        await auth.fetchCurrentUser()
-      } catch {
-        return true
-      }
+    try {
+      await auth.ensureUser()
+    } catch {
+      return true
     }
-    if (auth.user) {
-      return auth.isAdmin ? { name: 'admin' } : { name: 'profile' }
-    }
+    return auth.homePath
   }
 
   return true

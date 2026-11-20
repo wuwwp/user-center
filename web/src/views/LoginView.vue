@@ -5,10 +5,12 @@ import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { register, resetPassword } from '@/api/auth'
 import { recoverAccount } from '@/api/user'
-import { ApiError } from '@/api/http'
+import { notifyApiError } from '@/api/errors'
 import { isSafeInternalPath } from '@/api/authStorage'
 import { useAuthStore } from '@/stores/auth'
-import { useCodeSender } from '@/composables/useCodeSender'
+import EmailCodePasswordForm from '@/components/EmailCodePasswordForm.vue'
+import type { EmailCodeCredentials } from '@/api/types'
+import { emailRule } from '@/utils/formRules'
 
 type TabName = 'login' | 'register' | 'reset' | 'recover'
 
@@ -23,92 +25,12 @@ const resetLoading = ref(false)
 const recoverLoading = ref(false)
 
 const loginFormRef = ref<FormInstance>()
-const registerFormRef = ref<FormInstance>()
-const resetFormRef = ref<FormInstance>()
-const recoverFormRef = ref<FormInstance>()
-
 const loginForm = reactive({ email: '', password: '' })
-const registerForm = reactive({ email: '', code: '', password: '', confirm: '' })
-const resetForm = reactive({ email: '', code: '', newPassword: '', confirm: '' })
-const recoverForm = reactive({ email: '', code: '', newPassword: '', confirm: '' })
-
-const emailRule = [
-  { required: true, message: '请输入邮箱', trigger: 'blur' },
-  { type: 'email' as const, message: '邮箱格式不正确', trigger: 'blur' },
-  { max: 128, message: '邮箱长度不能超过 128', trigger: 'blur' },
-]
-
-const passwordRule = {
-  required: true,
-  pattern: /^(?=.*[A-Za-z])(?=.*[0-9])[!-~]{8,64}$/,
-  message: '密码为 8~64 位，且至少包含字母与数字',
-  trigger: 'blur',
-}
-
-const codeRule = [
-  { required: true, message: '请输入验证码', trigger: 'blur' },
-  { pattern: /^\d{6}$/, message: '验证码为 6 位数字', trigger: 'blur' },
-]
-
-function confirmRule(getPassword: () => string) {
-  return {
-    validator: (_rule: unknown, value: string, callback: (error?: Error) => void) => {
-      if (!value) {
-        callback(new Error('请再次输入密码'))
-      } else if (value !== getPassword()) {
-        callback(new Error('两次输入的密码不一致'))
-      } else {
-        callback()
-      }
-    },
-    trigger: 'blur',
-  }
-}
 
 const loginRules: FormRules = {
   email: emailRule,
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
 }
-
-const registerRules: FormRules = {
-  email: emailRule,
-  code: codeRule,
-  password: [passwordRule],
-  confirm: [confirmRule(() => registerForm.password)],
-}
-
-const resetRules: FormRules = {
-  email: emailRule,
-  code: codeRule,
-  newPassword: [passwordRule],
-  confirm: [confirmRule(() => resetForm.newPassword)],
-}
-
-const recoverRules: FormRules = {
-  email: emailRule,
-  code: codeRule,
-  newPassword: [passwordRule],
-  confirm: [confirmRule(() => recoverForm.newPassword)],
-}
-
-const {
-  sending: registerSending,
-  countdown: registerCountdown,
-  send: sendRegisterCode,
-  buttonText: registerCodeText,
-} = useCodeSender('register')
-const {
-  sending: resetSending,
-  countdown: resetCountdown,
-  send: sendResetCode,
-  buttonText: resetCodeText,
-} = useCodeSender('reset')
-const {
-  sending: recoverSending,
-  countdown: recoverCountdown,
-  send: sendRecoverCode,
-  buttonText: recoverCodeText,
-} = useCodeSender('recover')
 
 const cardCopy = computed(() => {
   switch (activeTab.value) {
@@ -123,112 +45,74 @@ const cardCopy = computed(() => {
   }
 })
 
-async function validate(formRef: FormInstance | undefined): Promise<boolean> {
-  if (!formRef) return false
-  try {
-    await formRef.validate()
-    return true
-  } catch {
-    return false
-  }
-}
-
-async function validateEmail(formRef: FormInstance | undefined): Promise<boolean> {
-  if (!formRef) return false
-  try {
-    await formRef.validateField('email')
-    return true
-  } catch {
-    return false
-  }
-}
-
-function showError(error: unknown, fallback: string): void {
-  ElMessage.error(error instanceof ApiError ? error.message : fallback)
-}
-
-function homePath(): string {
-  return auth.isAdmin ? '/admin' : '/profile'
-}
-
 async function handleLogin(): Promise<void> {
-  if (!(await validate(loginFormRef.value))) return
+  if (!loginFormRef.value) return
+  try {
+    await loginFormRef.value.validate()
+  } catch {
+    return
+  }
+
   loginLoading.value = true
   try {
     await auth.login({ email: loginForm.email.trim(), password: loginForm.password })
     const returnUrl = route.query.returnUrl
-    await router.push(isSafeInternalPath(returnUrl) ? returnUrl : homePath())
+    await router.push(isSafeInternalPath(returnUrl) ? returnUrl : auth.homePath)
   } catch (error) {
-    showError(error, '登录失败，请检查邮箱和密码')
+    notifyApiError(error, '登录失败，请检查邮箱和密码')
   } finally {
     loginLoading.value = false
   }
 }
 
-async function handleRegister(): Promise<void> {
-  if (!(await validate(registerFormRef.value))) return
+async function handleRegister(credentials: EmailCodeCredentials): Promise<void> {
   registerLoading.value = true
   try {
-    await register({
-      email: registerForm.email.trim(),
-      code: registerForm.code.trim(),
-      password: registerForm.password,
-    })
+    await register(credentials)
     ElMessage.success('注册成功，请登录')
-    loginForm.email = registerForm.email.trim()
+    loginForm.email = credentials.email
     activeTab.value = 'login'
   } catch (error) {
-    showError(error, '注册失败，请检查信息')
+    notifyApiError(error, '注册失败，请检查信息')
   } finally {
     registerLoading.value = false
   }
 }
 
-async function handleReset(): Promise<void> {
-  if (!(await validate(resetFormRef.value))) return
+async function handleReset(credentials: EmailCodeCredentials): Promise<void> {
   resetLoading.value = true
   try {
     await resetPassword({
-      email: resetForm.email.trim(),
-      code: resetForm.code.trim(),
-      newPassword: resetForm.newPassword,
+      email: credentials.email,
+      code: credentials.code,
+      newPassword: credentials.password,
     })
     ElMessage.success('密码已重置，请使用新密码登录')
-    loginForm.email = resetForm.email.trim()
+    loginForm.email = credentials.email
     activeTab.value = 'login'
   } catch (error) {
-    showError(error, '重置失败，请检查验证码')
+    notifyApiError(error, '重置失败，请检查验证码')
   } finally {
     resetLoading.value = false
   }
 }
 
-async function handleRecover(): Promise<void> {
-  if (!(await validate(recoverFormRef.value))) return
+async function handleRecover(credentials: EmailCodeCredentials): Promise<void> {
   recoverLoading.value = true
   try {
     await recoverAccount({
-      email: recoverForm.email.trim(),
-      code: recoverForm.code.trim(),
-      newPassword: recoverForm.newPassword,
+      email: credentials.email,
+      code: credentials.code,
+      newPassword: credentials.password,
     })
     ElMessage.success('账号已恢复，请使用新密码登录')
-    loginForm.email = recoverForm.email.trim()
+    loginForm.email = credentials.email
     activeTab.value = 'login'
   } catch (error) {
-    showError(error, '恢复失败，请确认账号已注销且验证码正确')
+    notifyApiError(error, '恢复失败，请确认账号已注销且验证码正确')
   } finally {
     recoverLoading.value = false
   }
-}
-
-async function requestCode(
-  formRef: FormInstance | undefined,
-  email: string,
-  send: (email: string) => Promise<void>,
-): Promise<void> {
-  if (!(await validateEmail(formRef))) return
-  await send(email.trim())
 }
 
 function applyTabFromQuery(): void {
@@ -305,191 +189,38 @@ watch(() => route.query.tab, applyTabFromQuery)
           </el-tab-pane>
 
           <el-tab-pane label="注册" name="register">
-            <el-form
-              ref="registerFormRef"
-              :model="registerForm"
-              :rules="registerRules"
-              label-position="top"
-              size="large"
-              @submit.prevent="handleRegister"
-            >
-              <el-form-item label="邮箱" prop="email">
-                <el-input
-                  v-model="registerForm.email"
-                  autocomplete="email"
-                  placeholder="name@example.com"
-                />
-              </el-form-item>
-              <el-form-item label="验证码" prop="code">
-                <div class="code-row">
-                  <el-input
-                    v-model="registerForm.code"
-                    inputmode="numeric"
-                    maxlength="6"
-                    placeholder="6 位数字"
-                  />
-                  <el-button
-                    :disabled="registerSending || registerCountdown > 0"
-                    :loading="registerSending"
-                    @click="requestCode(registerFormRef, registerForm.email, sendRegisterCode)"
-                  >
-                    {{ registerCodeText }}
-                  </el-button>
-                </div>
-              </el-form-item>
-              <el-form-item label="密码" prop="password">
-                <el-input
-                  v-model="registerForm.password"
-                  type="password"
-                  show-password
-                  autocomplete="new-password"
-                  placeholder="8~64 位，至少包含字母与数字"
-                />
-              </el-form-item>
-              <el-form-item label="确认密码" prop="confirm">
-                <el-input
-                  v-model="registerForm.confirm"
-                  type="password"
-                  show-password
-                  autocomplete="new-password"
-                  placeholder="再次输入密码"
-                />
-              </el-form-item>
-              <el-button
-                class="submit-button"
-                type="primary"
-                native-type="submit"
-                :loading="registerLoading"
-              >
-                创建账号
-              </el-button>
-            </el-form>
+            <EmailCodePasswordForm
+              scene="register"
+              :loading="registerLoading"
+              submit-text="创建账号"
+              @submit="handleRegister"
+            />
           </el-tab-pane>
 
           <el-tab-pane label="忘记密码" name="reset">
-            <el-form
-              ref="resetFormRef"
-              :model="resetForm"
-              :rules="resetRules"
-              label-position="top"
-              size="large"
-              @submit.prevent="handleReset"
-            >
-              <el-form-item label="邮箱" prop="email">
-                <el-input
-                  v-model="resetForm.email"
-                  autocomplete="email"
-                  placeholder="注册时使用的邮箱"
-                />
-              </el-form-item>
-              <el-form-item label="验证码" prop="code">
-                <div class="code-row">
-                  <el-input
-                    v-model="resetForm.code"
-                    inputmode="numeric"
-                    maxlength="6"
-                    placeholder="6 位数字"
-                  />
-                  <el-button
-                    :disabled="resetSending || resetCountdown > 0"
-                    :loading="resetSending"
-                    @click="requestCode(resetFormRef, resetForm.email, sendResetCode)"
-                  >
-                    {{ resetCodeText }}
-                  </el-button>
-                </div>
-              </el-form-item>
-              <el-form-item label="新密码" prop="newPassword">
-                <el-input
-                  v-model="resetForm.newPassword"
-                  type="password"
-                  show-password
-                  autocomplete="new-password"
-                  placeholder="8~64 位，至少包含字母与数字"
-                />
-              </el-form-item>
-              <el-form-item label="确认新密码" prop="confirm">
-                <el-input
-                  v-model="resetForm.confirm"
-                  type="password"
-                  show-password
-                  autocomplete="new-password"
-                  placeholder="再次输入新密码"
-                />
-              </el-form-item>
-              <el-button
-                class="submit-button"
-                type="primary"
-                native-type="submit"
-                :loading="resetLoading"
-              >
-                重置密码
-              </el-button>
-              <p class="form-hint">验证码会发送到已注册且状态正常的邮箱。</p>
-            </el-form>
+            <EmailCodePasswordForm
+              scene="reset"
+              :loading="resetLoading"
+              submit-text="重置密码"
+              email-placeholder="注册时使用的邮箱"
+              password-label="新密码"
+              confirm-label="确认新密码"
+              hint="验证码会发送到已注册且状态正常的邮箱。"
+              @submit="handleReset"
+            />
           </el-tab-pane>
 
           <el-tab-pane label="恢复账号" name="recover">
-            <el-form
-              ref="recoverFormRef"
-              :model="recoverForm"
-              :rules="recoverRules"
-              label-position="top"
-              size="large"
-              @submit.prevent="handleRecover"
-            >
-              <el-form-item label="邮箱" prop="email">
-                <el-input
-                  v-model="recoverForm.email"
-                  autocomplete="email"
-                  placeholder="已注销账号的邮箱"
-                />
-              </el-form-item>
-              <el-form-item label="验证码" prop="code">
-                <div class="code-row">
-                  <el-input
-                    v-model="recoverForm.code"
-                    inputmode="numeric"
-                    maxlength="6"
-                    placeholder="6 位数字"
-                  />
-                  <el-button
-                    :disabled="recoverSending || recoverCountdown > 0"
-                    :loading="recoverSending"
-                    @click="requestCode(recoverFormRef, recoverForm.email, sendRecoverCode)"
-                  >
-                    {{ recoverCodeText }}
-                  </el-button>
-                </div>
-              </el-form-item>
-              <el-form-item label="新密码" prop="newPassword">
-                <el-input
-                  v-model="recoverForm.newPassword"
-                  type="password"
-                  show-password
-                  autocomplete="new-password"
-                  placeholder="8~64 位，至少包含字母与数字"
-                />
-              </el-form-item>
-              <el-form-item label="确认新密码" prop="confirm">
-                <el-input
-                  v-model="recoverForm.confirm"
-                  type="password"
-                  show-password
-                  autocomplete="new-password"
-                  placeholder="再次输入新密码"
-                />
-              </el-form-item>
-              <el-button
-                class="submit-button"
-                type="primary"
-                native-type="submit"
-                :loading="recoverLoading"
-              >
-                恢复账号
-              </el-button>
-              <p class="form-hint">只有已注销且未被封禁的账号会收到恢复验证码。</p>
-            </el-form>
+            <EmailCodePasswordForm
+              scene="recover"
+              :loading="recoverLoading"
+              submit-text="恢复账号"
+              email-placeholder="已注销账号的邮箱"
+              password-label="新密码"
+              confirm-label="确认新密码"
+              hint="只有已注销且未被封禁的账号会收到恢复验证码。"
+              @submit="handleRecover"
+            />
           </el-tab-pane>
         </el-tabs>
       </div>
@@ -607,21 +338,6 @@ watch(() => route.query.tab, applyTabFromQuery)
 
 .auth-tabs {
   margin-top: 24px;
-}
-
-.code-row {
-  display: flex;
-  gap: 10px;
-  width: 100%;
-}
-
-.code-row .el-input {
-  flex: 1;
-  min-width: 0;
-}
-
-.code-row .el-button {
-  width: 132px;
 }
 
 .submit-button {

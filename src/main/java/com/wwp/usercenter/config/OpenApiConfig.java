@@ -10,6 +10,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class OpenApiConfig {
 
+  public static final String BEARER_AUTH = "bearerAuth";
+
   @Bean
   public OpenAPI userCenterOpenApi() {
     return new OpenAPI()
@@ -17,7 +19,7 @@ public class OpenApiConfig {
         .components(
             new Components()
                 .addSecuritySchemes(
-                    "bearerAuth",
+                    BEARER_AUTH,
                     new SecurityScheme()
                         .type(SecurityScheme.Type.HTTP)
                         .scheme("bearer")

@@ -1,5 +1,6 @@
 package com.wwp.usercenter.controller;
 
+import com.wwp.usercenter.config.OpenApiConfig;
 import com.wwp.usercenter.model.dto.LoginResult;
 import com.wwp.usercenter.model.dto.RegisterResult;
 import com.wwp.usercenter.model.param.LoginParam;
@@ -36,7 +37,7 @@ public class AuthController {
     return authService.login(param, clientIpResolver.resolve(request));
   }
 
-  @SecurityRequirement(name = "bearerAuth")
+  @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
   @PostMapping("/logout")
   public void logout() {
     authService.logout(SecurityUtils.currentUserId());

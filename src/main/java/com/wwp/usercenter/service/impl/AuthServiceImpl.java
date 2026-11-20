@@ -135,8 +135,9 @@ public class AuthServiceImpl implements AuthService {
   @Override
   public void sendEmailCode(SendEmailCodeParam param, String clientIp) {
     String email = EmailUtils.normalize(param.email());
-    User user = findByNormalizedEmail(email);
+    // 先发码：被冷却或日限拒绝的请求不再查询数据库
     String code = verificationCodeService.issue(email, param.scene(), clientIp);
+    User user = findByNormalizedEmail(email);
     if (shouldDeliver(user, param.scene())) {
       // 异步投递；失败由 dispatch 记录日志，不改变对外响应
       emailDispatchService.dispatch(email, param.scene(), code);

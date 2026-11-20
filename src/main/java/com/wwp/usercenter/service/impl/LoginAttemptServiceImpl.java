@@ -11,6 +11,7 @@ import com.wwp.usercenter.common.ErrorCode;
 import com.wwp.usercenter.service.LoginAttemptService;
 import com.wwp.usercenter.util.EmailUtils;
 import com.wwp.usercenter.util.RedisCounterUtils;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -25,13 +26,15 @@ public class LoginAttemptServiceImpl implements LoginAttemptService {
 
   @Override
   public void ensureLoginAllowed(String normalizedEmail, String clientIp) {
-    String accountKey = accountFailKey(normalizedEmail);
-    String ipKey = ipFailKey(clientIp);
-    if (currentCount(accountKey) >= ACCOUNT_FAIL_LIMIT) {
+    List<String> counts =
+        redisTemplate
+            .opsForValue()
+            .multiGet(List.of(accountFailKey(normalizedEmail), ipFailKey(clientIp)));
+    if (parseCount(counts, 0) >= ACCOUNT_FAIL_LIMIT) {
       log.warn("login rejected, account locked, email={}", EmailUtils.mask(normalizedEmail));
       throw new BusinessException(ErrorCode.LOGIN_LOCKED);
     }
-    if (currentCount(ipKey) >= IP_FAIL_LIMIT) {
+    if (parseCount(counts, 1) >= IP_FAIL_LIMIT) {
       log.warn("login rejected, ip locked, ip={}", clientIp);
       throw new BusinessException(ErrorCode.LOGIN_LOCKED);
     }
@@ -48,8 +51,8 @@ public class LoginAttemptServiceImpl implements LoginAttemptService {
     redisTemplate.delete(accountFailKey(normalizedEmail));
   }
 
-  private long currentCount(String key) {
-    String value = redisTemplate.opsForValue().get(key);
+  private static long parseCount(List<String> counts, int index) {
+    String value = counts == null || index >= counts.size() ? null : counts.get(index);
     if (value == null) {
       return 0L;
     }

@@ -44,16 +44,20 @@
         where email = #{email}
     </select>
 
-    <select id="selectAccountById" resultType="com.wwp.usercenter.model.entity.User">
+    <select id="selectAccountsByIds" resultType="com.wwp.usercenter.model.entity.User">
         select id, user_account
         from `user`
-        where id = #{userId}
+        where id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
     </select>
+
+    <sql id="tokenVersionIncrement">token_version = token_version + 1</sql>
+    <sql id="passwordAssignment">password_hash = #{passwordHash}</sql>
 
     <update id="updateStatusAndIncrementTokenVersion">
         update `user`
         set status = #{status},
-            token_version = token_version + 1
+            <include refid="tokenVersionIncrement"/>
         where id = #{userId}
           and is_delete = 0
     </update>
@@ -61,7 +65,7 @@
     <update id="softDeleteAccount">
         update `user`
         set is_delete = 1,
-            token_version = token_version + 1
+            <include refid="tokenVersionIncrement"/>
         where id = #{userId}
           and is_delete = 0
           and status = 0
@@ -70,8 +74,8 @@
     <update id="recoverAccount">
         update `user`
         set is_delete = 0,
-            password_hash = #{passwordHash},
-            token_version = token_version + 1
+            <include refid="passwordAssignment"/>,
+            <include refid="tokenVersionIncrement"/>
         where id = #{userId}
           and is_delete = 1
           and status = 0
@@ -79,14 +83,14 @@
 
     <update id="updatePassword">
         update `user`
-        set password_hash = #{passwordHash},
-            token_version = token_version + 1
+        set <include refid="passwordAssignment"/>,
+            <include refid="tokenVersionIncrement"/>
         where id = #{userId}
     </update>
 
     <update id="incrementTokenVersion">
         update `user`
-        set token_version = token_version + 1
+        set <include refid="tokenVersionIncrement"/>
         where id = #{userId}
     </update>
 

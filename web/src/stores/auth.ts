@@ -10,8 +10,10 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<CurrentUser | null>(null)
   const loading = ref(false)
 
-  const isAuthenticated = computed(() => Boolean(token.value))
   const isAdmin = computed(() => user.value?.role === 'ADMIN')
+  const homePath = computed(() => (isAdmin.value ? '/admin' : '/profile'))
+
+  let pendingUser: Promise<CurrentUser> | null = null
 
   function clear(): void {
     token.value = null
@@ -31,6 +33,23 @@ export const useAuthStore = defineStore('auth', () => {
       clear()
       throw error
     }
+  }
+
+  /** 路由守卫共用入口：已有用户直接返回，并发调用只发一次请求。 */
+  async function ensureUser(): Promise<CurrentUser> {
+    if (user.value) return user.value
+    if (!token.value) throw new Error('未登录')
+    if (!pendingUser) {
+      pendingUser = fetchCurrentUser()
+        .then((current) => {
+          if (!current) throw new Error('登录状态无效')
+          return current
+        })
+        .finally(() => {
+          pendingUser = null
+        })
+    }
+    return pendingUser
   }
 
   async function login(payload: authApi.LoginPayload): Promise<CurrentUser> {
@@ -65,11 +84,12 @@ export const useAuthStore = defineStore('auth', () => {
     token,
     user,
     loading,
-    isAuthenticated,
     isAdmin,
+    homePath,
     login,
     logout,
     fetchCurrentUser,
+    ensureUser,
     clear,
   }
 })

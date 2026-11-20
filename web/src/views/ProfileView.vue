@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { reactive, ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import AppShell from '@/layouts/AppShell.vue'
 import { changePassword, deleteAccount } from '@/api/user'
-import { ApiError } from '@/api/http'
+import { notifyApiError } from '@/api/errors'
 import { useAuthStore } from '@/stores/auth'
 import { useCodeSender } from '@/composables/useCodeSender'
+import { confirmRule, passwordRule } from '@/utils/formRules'
+import { roleLabel } from '@/labels'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -26,34 +28,10 @@ const {
   countdown: deleteCountdown,
 } = useCodeSender('delete')
 
-const passwordRule = {
-  required: true,
-  pattern: /^(?=.*[A-Za-z])(?=.*[0-9])[!-~]{8,64}$/,
-  message: '密码为 8~64 位，且至少包含字母与数字',
-  trigger: 'blur',
-}
-
 const passwordRules: FormRules = {
   oldPassword: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
-  newPassword: [passwordRule],
-  confirm: [
-    {
-      validator: (_rule: unknown, value: string, callback: (error?: Error) => void) => {
-        if (!value) {
-          callback(new Error('请再次输入新密码'))
-        } else if (value !== passwordForm.newPassword) {
-          callback(new Error('两次输入的密码不一致'))
-        } else {
-          callback()
-        }
-      },
-      trigger: 'blur',
-    },
-  ],
-}
-
-function showError(error: unknown, fallback: string): void {
-  ElMessage.error(error instanceof ApiError ? error.message : fallback)
+  newPassword: passwordRule,
+  confirm: [confirmRule(() => passwordForm.newPassword)],
 }
 
 async function handleChangePassword(): Promise<void> {
@@ -74,7 +52,7 @@ async function handleChangePassword(): Promise<void> {
     auth.clear()
     await router.push({ name: 'login' })
   } catch (error) {
-    showError(error, '修改密码失败')
+    notifyApiError(error, '修改密码失败')
   } finally {
     passwordLoading.value = false
   }
@@ -107,7 +85,7 @@ async function handleDelete(): Promise<void> {
     auth.clear()
     await router.push({ name: 'login' })
   } catch (error) {
-    showError(error, '注销失败，请检查验证码')
+    notifyApiError(error, '注销失败，请检查验证码')
   } finally {
     deleteLoading.value = false
   }
@@ -117,16 +95,6 @@ function openDeleteDialog(): void {
   deleteCode.value = ''
   deleteDialogVisible.value = true
 }
-
-onMounted(async () => {
-  if (!auth.user) {
-    try {
-      await auth.fetchCurrentUser()
-    } catch {
-      await router.push({ name: 'login' })
-    }
-  }
-})
 </script>
 
 <template>
@@ -144,7 +112,7 @@ onMounted(async () => {
         <header class="section-header">
           <h2>账号资料</h2>
           <el-tag :type="auth.isAdmin ? 'success' : 'info'" effect="plain">
-            {{ auth.isAdmin ? '管理员' : '普通用户' }}
+            {{ roleLabel(auth.user?.role) }}
           </el-tag>
         </header>
         <el-descriptions :column="1" border>
@@ -158,7 +126,7 @@ onMounted(async () => {
             {{ auth.user?.email || '—' }}
           </el-descriptions-item>
           <el-descriptions-item label="角色">
-            {{ auth.isAdmin ? '管理员' : '普通用户' }}
+            {{ roleLabel(auth.user?.role) }}
           </el-descriptions-item>
         </el-descriptions>
         <p class="card-note">账号标识由系统生成，不参与登录；登录使用邮箱。</p>

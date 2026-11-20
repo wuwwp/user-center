@@ -42,9 +42,25 @@ describe('auth store', () => {
 
     expect(user.role).toBe('USER')
     expect(store.token).toBe('token-1')
-    expect(store.isAuthenticated).toBe(true)
     expect(store.isAdmin).toBe(false)
+    expect(store.homePath).toBe('/profile')
     expect(sessionStorage.getItem('user-center.token')).toBe('token-1')
+  })
+
+  it('loads the current user once when ensureUser is called repeatedly', async () => {
+    const store = useAuthStore()
+    store.token = 'token-1'
+    mockedGetCurrentUser.mockResolvedValue({
+      userAccount: 'u00000001',
+      nickname: null,
+      email: 'a@example.com',
+      role: 'USER',
+    })
+
+    await Promise.all([store.ensureUser(), store.ensureUser()])
+
+    expect(mockedGetCurrentUser).toHaveBeenCalledTimes(1)
+    expect(store.user?.userAccount).toBe('u00000001')
   })
 
   it('clears local state when fetching the current user fails', async () => {

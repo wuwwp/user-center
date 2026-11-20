@@ -12,6 +12,9 @@ public final class ValidationConstants {
 
   public static final String PASSWORD_MESSAGE = "密码必须为 8~64 位，且至少包含字母与数字";
 
+  public static final String PASSWORD_LENGTH_MESSAGE =
+      "密码长度必须为 " + PASSWORD_MIN_LENGTH + "~" + PASSWORD_MAX_LENGTH + " 位";
+
   public static final int EMAIL_MAX_LENGTH = 128;
 
   /** 与 user 表 user_account 列宽一致。 */

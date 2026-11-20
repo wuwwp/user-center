@@ -2,6 +2,7 @@
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { roleLabel } from '@/labels'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -41,7 +42,7 @@ async function handleLogout(): Promise<void> {
             <span class="header-user-name">
               {{ auth.user?.nickname || auth.user?.userAccount || '未登录' }}
             </span>
-            <span class="header-user-role">{{ auth.isAdmin ? '管理员' : '普通用户' }}</span>
+            <span class="header-user-role">{{ roleLabel(auth.user?.role) }}</span>
           </div>
           <el-button text class="logout-button" @click="handleLogout">退出登录</el-button>
         </div>

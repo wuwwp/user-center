@@ -14,7 +14,7 @@ spring:
     virtual:
       enabled: true
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/usercenter?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/usercenter?useUnicode=true&characterEncoding=utf8&serverTimezone=${USER_CENTER_TIME_ZONE:Asia/Shanghai}&useSSL=false&allowPublicKeyRetrieval=true}
     username: ${DB_USERNAME:usercenter}
     password: ${DB_PASSWORD:}
     hikari:
@@ -44,7 +44,7 @@ spring:
       mail.smtp.timeout: 5000
       mail.smtp.writetimeout: 5000
   jackson:
-    time-zone: Asia/Shanghai
+    time-zone: ${USER_CENTER_TIME_ZONE:Asia/Shanghai}
   lifecycle:
     timeout-per-shutdown-phase: 20s
 

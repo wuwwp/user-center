@@ -1,6 +1,7 @@
 package com.wwp.usercenter.controller;
 
 import com.wwp.usercenter.common.constant.ValidationConstants;
+import com.wwp.usercenter.config.OpenApiConfig;
 import com.wwp.usercenter.model.dto.AdminPasswordResetResult;
 import com.wwp.usercenter.model.dto.PageResult;
 import com.wwp.usercenter.model.dto.UserSummaryDTO;
@@ -24,7 +25,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-@SecurityRequirement(name = "bearerAuth")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequestMapping("/api/v1/admin/users")
 @RequiredArgsConstructor

@@ -1,6 +1,7 @@
 package com.wwp.usercenter.security;
 
 import com.wwp.usercenter.common.ErrorCode;
+import com.wwp.usercenter.common.ProblemDetailFactory;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -19,10 +20,7 @@ final class SecurityErrorResponseWriter {
 
   static void write(HttpServletResponse response, ObjectMapper objectMapper, ErrorCode errorCode)
       throws IOException {
-    ProblemDetail problem =
-        ProblemDetail.forStatusAndDetail(errorCode.getHttpStatus(), errorCode.getMessage());
-    problem.setTitle(errorCode.getMessage());
-    problem.setProperty("code", errorCode.getCode());
+    ProblemDetail problem = ProblemDetailFactory.of(errorCode, errorCode.getMessage());
 
     response.setStatus(errorCode.getHttpStatus().value());
     response.setCharacterEncoding(StandardCharsets.UTF_8.name());

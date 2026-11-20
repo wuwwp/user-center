@@ -156,10 +156,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
   }
 
   private static ProblemDetail problem(ErrorCode errorCode, String detail) {
-    ProblemDetail problem = ProblemDetail.forStatusAndDetail(errorCode.getHttpStatus(), detail);
-    problem.setTitle(errorCode.getMessage());
-    problem.setProperty("code", errorCode.getCode());
-    return problem;
+    return ProblemDetailFactory.of(errorCode, detail);
   }
 
   private static ResponseEntity<Object> problemResponse(ErrorCode errorCode, String detail) {

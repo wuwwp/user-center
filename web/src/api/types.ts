@@ -19,6 +19,13 @@ export interface RegisterResult {
   userAccount: string
 }
 
+/** 邮箱验证码场景下三个表单共用的提交数据。 */
+export interface EmailCodeCredentials {
+  email: string
+  code: string
+  password: string
+}
+
 export interface PageResult<T> {
   items: T[]
   total: number

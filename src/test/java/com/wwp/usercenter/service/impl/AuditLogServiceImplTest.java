@@ -1,7 +1,6 @@
 package com.wwp.usercenter.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
@@ -10,6 +9,7 @@ import com.wwp.usercenter.mapper.UserMapper;
 import com.wwp.usercenter.model.entity.AdminAuditLog;
 import com.wwp.usercenter.model.entity.User;
 import com.wwp.usercenter.model.enums.AuditAction;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -26,8 +26,8 @@ class AuditLogServiceImplTest {
 
   @Test
   void should_write_actor_and_target_snapshots() {
-    given(userMapper.selectAccountById(1L)).willReturn(account(1L, "admin0001"));
-    given(userMapper.selectAccountById(2L)).willReturn(account(2L, "u00000002"));
+    given(userMapper.selectAccountsByIds(List.of(1L, 2L)))
+        .willReturn(List.of(account(1L, "admin0001"), account(2L, "u00000002")));
 
     service.record(1L, 2L, AuditAction.USER_BAN, "oldStatus=NORMAL,newStatus=BANNED");
 
@@ -44,7 +44,7 @@ class AuditLogServiceImplTest {
 
   @Test
   void should_use_unknown_when_account_snapshot_is_missing() {
-    given(userMapper.selectAccountById(any())).willReturn(null);
+    given(userMapper.selectAccountsByIds(List.of(1L, 2L))).willReturn(List.of());
 
     service.record(1L, 2L, AuditAction.PASSWORD_RESET, "reason=admin_reset");
 

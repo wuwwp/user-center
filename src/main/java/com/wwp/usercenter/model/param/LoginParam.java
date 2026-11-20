@@ -11,5 +11,5 @@ public record LoginParam(
         @Size(
             min = ValidationConstants.PASSWORD_MIN_LENGTH,
             max = ValidationConstants.PASSWORD_MAX_LENGTH,
-            message = "密码长度必须为 8~64 位")
+            message = ValidationConstants.PASSWORD_LENGTH_MESSAGE)
         String password) {}
