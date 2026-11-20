@@ -62,7 +62,7 @@ http.interceptors.response.use(
     const retryAfterHeader = response?.headers?.['retry-after']
     const retryAfter = Number(retryAfterHeader)
 
-    if (status === 401 && error.config?.headers?.Authorization) {
+    if (status === 401 && !isPublicRequest(error.config?.url) && getToken()) {
       clearToken()
       redirectToLogin()
     }
