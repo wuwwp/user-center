@@ -1,0 +1,65 @@
+:root {
+  --uc-primary: #0b6e4f;
+  --uc-primary-dark: #08543c;
+  --uc-primary-soft: #8fc9b4;
+  --uc-bg: #f6f2e9;
+  --uc-surface: #fffdf8;
+  --uc-ink: #22201c;
+  --uc-muted: #6b655c;
+  --uc-line: #e3dccf;
+  --uc-danger: #8b3a2f;
+
+  --el-color-primary: var(--uc-primary);
+  --el-color-primary-light-3: #4a9277;
+  --el-color-primary-light-5: #85b6a3;
+  --el-color-primary-light-7: #b9d6c9;
+  --el-color-primary-light-8: #d3e5dc;
+  --el-color-primary-light-9: #e7f1ec;
+  --el-color-primary-dark-2: var(--uc-primary-dark);
+  --el-color-danger: var(--uc-danger);
+  --el-font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--uc-bg);
+  color: var(--uc-ink);
+  font-family: var(--el-font-family);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--uc-primary);
+  text-decoration: none;
+}
+
+.el-card,
+.el-dialog,
+.el-table {
+  --el-border-radius-base: 10px;
+}
+
+.el-button {
+  font-weight: 500;
+}
+
+.el-tabs__item {
+  font-weight: 500;
+}
+
+.el-descriptions__label {
+  width: 96px;
+}

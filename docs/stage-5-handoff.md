@@ -1,8 +1,8 @@
-# 阶段 5 交接：Web 前端
+# 阶段 5 交接：Web 前端（已完成）
 
-> **状态：阶段 5 待开始。** 后端阶段 4 已完成并通过 CI；设计见 `docs/plan.md` §4.2、§7.3、§8、§11。
-> 更新日期：2026-11-19
-> 先读 `docs/progress.md`，再读本文。
+> **状态：已完成（2026-11-20）。** 三个页面、认证流程、主题与安全基线已落地；本文保留为阶段 5 的设计与实现记录，下一阶段见 `docs/stage-6-handoff.md`。
+> 更新日期：2026-11-20
+> 设计见 `docs/plan.md` §4.2、§7.3、§8、§11。
 
 ## 1. 后端当前状态
 
@@ -76,7 +76,21 @@
 
 ## 8. 开放决策
 
-1. 令牌存内存、`sessionStorage` 还是 `localStorage`？
-2. 是否引入 Axios，还是直接用 `fetch` 封装？
+1. 令牌存内存、`sessionStorage` 还是 `localStorage`？**已定：`sessionStorage`。**
+2. 是否引入 Axios，还是直接用 `fetch` 封装？**已定：Axios。**
 3. 管理后台重置密码后，是否要求用户下一次登录强制改密？（后端本期不做）
-4. 前端是否做 Vitest/Playwright，还是只做 lint + build？
+4. 前端是否做 Vitest/Playwright，还是只做 lint + build？**已定：Vitest 覆盖 API 客户端和 auth store，不做 E2E。**
+5. 前端 CI 与 Dependabot npm：已准备配置；`web` job 需要 `workflow` scope 才能推送 workflow 文件。
+
+## 9. 实现结果
+
+- 目录：`web/`；Vue 3 + Vite + TypeScript strict + Element Plus + Pinia + Vue Router + Axios。
+- 路由：`/login`（登录/注册/忘记密码/恢复账号）、`/profile`、`/admin`；角色跳转与管理员守卫。
+- 认证：`sessionStorage` 令牌；刷新调用 `GET /users/me`；401 清令牌回登录；403/429 统一提示。
+- UI：墨绿/暖白/炭黑主题；登录页双栏卡片；管理端左侧导航 + 表格 + 重置密码一次性弹窗。
+- 安全：禁用 `v-html`；站内 `returnUrl`；生产构建关闭 source map；Nginx 增加 CSP/HSTS/安全头。
+- 质量：`npm run lint`、5 个 Vitest、`npm run build` 通过；主包约 871 kB（gzip 278 kB），后续可按需引入 Element Plus 优化。
+
+## 10. 阶段 6 待办
+
+见 `docs/stage-6-handoff.md`：CI `web` job、OpenAPI 导出、Docker/Compose 构建前端、k6 压测、部署与 TLS。

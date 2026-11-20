@@ -9,7 +9,8 @@
 - Java 21、Spring Boot 4.1、Spring Security 7
 - MyBatis-Plus 3.5、MySQL 8.4、Redis 7
 - Flyway 数据库迁移、JJWT、springdoc
-- JUnit 6、MockMvc、Testcontainers 2、JaCoCo
+- Vue 3、Vite、TypeScript、Element Plus、Pinia、Vue Router
+- JUnit 6、MockMvc、Testcontainers 2、JaCoCo、Vitest
 
 ## 已实现
 
@@ -21,6 +22,9 @@
 - Flyway 迁移；开发环境独立种子管理员，生产不创建默认账号
 - 异步邮件投递；SMTP/log 双实现，生产禁止 log 模式
 - 管理端：分页查询用户（邮箱掩码）、封禁/解封、随机密码重置；普通用户访问 403
+- 账号注销与恢复：注销要求 DELETE 验证码，恢复要求 RECOVER 验证码和新密码；旧令牌立即失效
+- 管理员操作审计：Flyway V3 `admin_audit_log`，封禁/解封/重置与审计同事务
+- Web 前端：登录/注册/找回/恢复、个人中心、管理后台；`web/`
 
 ## 本地启动
 
@@ -39,6 +43,17 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d mysql redis
 - 默认地址：`http://localhost:8080`
 - Swagger（dev/local）：`http://localhost:8080/swagger-ui.html`
 - 种子管理员只在 `dev` profile 创建；生产只跑 `db/migration`，不会创建默认账号。
+
+前端：
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+- 默认地址：`http://localhost:5173`
+- `/api` 由 Vite 代理到 `http://localhost:8080`；生产由 Nginx 托管 `web/dist` 并反代 `/api`。
 
 ## 测试
 
@@ -64,11 +79,11 @@ docker compose up -d --build
 
 ## CI
 
-GitHub Actions 工作流在 `.github/workflows/ci.yml`：每次 push 到 `main` 或开 PR 时运行 `./mvnw verify`，包括格式检查、单元/slice 测试、Testcontainers 集成测试和覆盖率门槛。
+GitHub Actions 工作流在 `.github/workflows/ci.yml`：每次 push 到 `main` 或开 PR 时并行运行后端 `./mvnw verify` 和前端 `web` job（`npm ci`、依赖审计、lint、Vitest、build）。
 
 - 结果在仓库 **Actions** 页查看。
 - 公开仓库免费；私有仓库每月有免费额度。
-- Dependabot 配置（`.github/dependabot.yml`）已启用。
+- Dependabot 配置（`.github/dependabot.yml`）覆盖 Maven、GitHub Actions 和 npm。
 - 如 Actions 页没有运行记录，检查 **Settings → Actions → General → Actions permissions** 是否允许 Actions。
 
 ## 文档
@@ -76,7 +91,7 @@ GitHub Actions 工作流在 `.github/workflows/ci.yml`：每次 push 到 `main` 
 - 设计：`docs/plan.md`
 - 进度与下一步：`docs/progress.md`
 - 编码规范：`docs/standards.md`
-- 阶段交接：`docs/stage-3-handoff.md`
+- 阶段交接：`docs/stage-4-handoff.md`、`docs/stage-5-handoff.md`
 
 ## 安全说明
 

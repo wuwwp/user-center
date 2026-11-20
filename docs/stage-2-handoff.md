@@ -116,7 +116,7 @@
 ./mvnw verify
 ```
 
-VM Docker 集成测试（沿用现有流程；具体命令见 `docs/progress.md` / 课程 Lesson 11 的 Testcontainers 部分）：
+VM Docker 集成测试（沿用现有流程；具体命令见 `docs/progress.md` 的测试部分）：
 
 ```bash
 docker run --rm --network host \
