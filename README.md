@@ -79,7 +79,7 @@ docker compose up -d --build
 
 ## CI
 
-GitHub Actions 工作流在 `.github/workflows/ci.yml`：每次 push 到 `main` 或开 PR 时运行后端 `./mvnw verify`。前端 `web` job（`npm ci`、依赖审计、lint、Vitest、build）配置已准备，待仓库具备 `workflow` scope 后启用。
+GitHub Actions 工作流在 `.github/workflows/ci.yml`：每次 push 到 `main` 或开 PR 时并行运行后端 `./mvnw verify` 和前端 `web` job（`npm ci`、依赖审计、lint、Vitest、build）。
 
 - 结果在仓库 **Actions** 页查看。
 - 公开仓库免费；私有仓库每月有免费额度。
@@ -88,10 +88,11 @@ GitHub Actions 工作流在 `.github/workflows/ci.yml`：每次 push 到 `main` 
 
 ## 文档
 
-- 设计：`docs/plan.md`
+- 文档地图：`docs/README.md`
 - 进度与下一步：`docs/progress.md`
-- 编码规范：`docs/standards.md`
-- 阶段交接：`docs/stage-4-handoff.md`、`docs/stage-5-handoff.md`
+- 当前交接：`docs/stage-6-handoff.md`
+- 设计：`docs/plan.md`；编码规范：`docs/standards.md`
+- 历史阶段：`docs/archive/`
 
 ## 安全说明
 

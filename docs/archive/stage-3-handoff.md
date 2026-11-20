@@ -1,6 +1,6 @@
 # 阶段 3 交接：管理员功能
 
-> **状态：已完成（2026-11-19）。** 本机单元/MockMvc、VM 集成测试与 GitHub Actions 均通过。下一阶段见 `docs/stage-4-handoff.md`。
+> **状态：已完成（2026-11-19）。** 本机单元/MockMvc、VM 集成测试与 GitHub Actions 均通过。下一阶段见 `docs/archive/stage-4-handoff.md`。
 >
 > 更新日期：2026-11-19
 > 读者：下一个会话的 AI / 开发者
