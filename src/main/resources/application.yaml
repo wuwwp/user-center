@@ -72,7 +72,8 @@ security:
     secret: ${JWT_SECRET:}
     expiration: 2h
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+    # 开发时 Vite 可能以 localhost 或 127.0.0.1 打开，两者都放行；生产通过环境变量覆盖
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
 
 management:
   endpoints:
