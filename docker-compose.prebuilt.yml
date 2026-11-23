@@ -1,0 +1,16 @@
+# 预先构建前端与 jar 后使用；适合 2C2G 或镜像源较慢的服务器。
+# 使用前准备：
+#   target/*.jar -> deploy/artifacts/app.jar
+#   web/dist/    -> deploy/artifacts/web/
+# 启动：
+#   docker compose -f docker-compose.yml -f docker-compose.prebuilt.yml up -d --build
+services:
+  app:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.app-runtime
+
+  nginx:
+    build:
+      context: .
+      dockerfile: deploy/nginx/Dockerfile.runtime

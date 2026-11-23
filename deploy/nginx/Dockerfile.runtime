@@ -1,0 +1,4 @@
+# 预构建部署：直接复制本地/CI 产出的 web/dist。
+FROM nginx:1.27-alpine
+COPY deploy/nginx/default.conf /etc/nginx/conf.d/default.conf
+COPY deploy/artifacts/web/ /usr/share/nginx/html/

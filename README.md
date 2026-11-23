@@ -74,6 +74,7 @@ docker compose up -d --build
 ```
 
 - Nginx 镜像在前端构建阶段执行 `npm ci && npm run build`，部署不需要预先构建 `web/dist`。
+- 2C2G 或镜像源较慢时，可本地构建后走预构建方式：把 `target/*.jar` 放到 `deploy/artifacts/app.jar`、`web/dist/` 放到 `deploy/artifacts/web/`，再执行 `docker compose -f docker-compose.yml -f docker-compose.prebuilt.yml up -d --build`。
 - Nginx 只暴露 80/443，80 跳转 443；MySQL/Redis 不映射宿主机端口。
 - 应用容器以非 root 运行，健康检查走 `/actuator/health`。
 - 2C2G 默认参数：JVM `-Xmx384m`、MySQL buffer pool 256m、Redis maxmemory 128m；可用环境变量覆盖。
