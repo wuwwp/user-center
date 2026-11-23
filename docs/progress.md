@@ -1,8 +1,8 @@
 # 项目进度
 
-更新日期：2026-11-20
+更新日期：2026-11-23
 设计文档版本：v0.21
-当前阶段：阶段 5 Web 前端完成；阶段 6 收尾与部署待开始
+当前阶段：阶段 6 已部署到云服务器（IP 自签 TLS）；待域名证书
 
 ## 项目定位（护栏）
 
@@ -21,28 +21,31 @@
 - 阶段 3：管理端分页、封禁/解封、随机密码重置；管理端 403
 - 阶段 4：DELETE 验证码注销、RECOVER 验证码恢复、Flyway V3 管理员审计
 - 阶段 5：`web/` 三页（登录/注册/找回/恢复、个人中心、管理后台）；sessionStorage + Axios + Element Plus
+- 阶段 6：OpenAPI 快照、Nginx 镜像内构建前端、预构建部署、k6 登录压测、云服务器上线与安全头验收
 
 ## 测试与验收
 
-- 后端：130 个单元/slice + 13 个集成；覆盖门槛 80% 通过
-- 前端：5 个 Vitest；`npm run lint`、`npm run build` 通过
+- 后端：132 个单元/slice + 13 个集成；覆盖门槛 80% 通过
+- 前端：6 个 Vitest；`npm run lint`、`npm run build` 通过
 - CI：后端 `verify` + 前端 `web` job（Node 24、audit、lint、Vitest、build）
-- 阶段 4 CI run `44539442887` 全绿；阶段 5 前端页面本地 Vite + mock 验证
+- 生产验收：HTTPS 登录、`/users/me`、`/admin/users` 均 200；CSP/HSTS 等安全头存在
+- 压测：成功登录 52 次 0 失败，P95 174ms；第 6 次失败触发 40102
 
 ## 环境
 
 - 本机：Windows 11、JDK 21（`D:\dev\jdk-21`）、Node 24；本机无 Docker
 - 开发虚拟机 `ssh user-center-vm`（192.168.216.130）：Docker 29.9.2
+- 云服务器：阿里云 2 核 2G、Ubuntu 24.04、Docker 29、2G swap；代码在 `/opt/user-center`
+- 生产部署：`docker compose -f docker-compose.yml -f docker-compose.prebuilt.yml up -d --build`
 - MySQL 8.4、Redis 7.4；开发启动 `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d mysql redis`
-- 种子管理员仅 dev profile 创建；云服务器规格待确认（建议 2 核 4G）
+- 种子管理员仅 dev profile 创建；生产管理员通过 SQL 引导创建，凭据不入仓库
 
-## 下一步（阶段 6）
+## 下一步
 
-1. OpenAPI 导出，补全接口示例
-2. Docker/Compose 构建前端产物，Nginx 静态托管与安全头验证
-3. k6 登录压测脚本与报告
-4. 云服务器部署、TLS 证书、验收
-5. 可选：Element Plus 按需引入，降低主包体积
+1. 域名 A 记录指向服务器，换 Let's Encrypt 证书，去掉浏览器自签警告
+2. 可选：Element Plus 按需引入，降低主包体积
+3. 可选：Lua 原子化 `INCR + EXPIRE`、验证码 `GET + DEL`
+4. 可选：注销数据保留/匿名化策略
 
 ## 交接
 
@@ -55,6 +58,5 @@
 
 ## 待确认 / 阻塞
 
-- 云服务器规格未定；Nginx TLS 证书需部署时生成或申请
-- 后续优化：Lua 原子化 `INCR + EXPIRE`、验证码 `GET + DEL`
-- 注销后的数据保留期限/匿名化未做，留到演进路线
+- 域名未定：当前用 IP 自签证书，浏览器会提示不受信任；提供域名后可换受信任证书
+- 后续优化：Element Plus 按需引入、Lua 原子化、注销数据保留/匿名化

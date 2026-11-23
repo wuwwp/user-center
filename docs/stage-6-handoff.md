@@ -1,7 +1,7 @@
 # 阶段 6 交接：收尾与部署
 
-> **状态：进行中。** 阶段 5 已完成；设计见 `docs/plan.md` §9、§10、§11。
-> 更新日期：2026-11-20
+> **状态：部署完成，仅域名证书待补。** 设计见 `docs/plan.md` §9、§10、§11。
+> 更新日期：2026-11-23
 > 先读 `docs/progress.md`，再读本文。
 
 ## 1. 当前状态
@@ -19,31 +19,29 @@
 - `.github/workflows/ci.yml` 的 `web` job：Node 24、`npm ci`、`npm audit --omit=dev --audit-level=high`、`npm run lint`、`npm run test:unit`、`npm run build`，与后端 `verify` 并行。
 - `.github/dependabot.yml` 已增加 npm ecosystem（`/web`）。
 
-### 2.2 OpenAPI 与文档
+### 2.2 OpenAPI 与文档（已完成）
 
-- 导出 OpenAPI JSON/YAML，放入 `docs/api/` 或构建产物；确认注销/恢复/管理员接口的请求体与错误码完整。
-- README 已补充前端启动与 CI；阶段 6 再补部署命令和截图。
+- 已导出 `docs/api/openapi.json`（OpenAPI 3.1，11 个路径）；生产关闭 springdoc，接口变更后重新导出。
+- README 已补预构建部署方式与 TLS 证书说明。
 
-### 2.3 Docker / Compose
+### 2.3 Docker / Compose（已完成）
 
-- 当前 `docker-compose.yml` 的 Nginx 挂载 `./web/dist`，但没有构建前端。
-- 二选一：
-  1. 增加 `web` 构建阶段：Node 构建后把 `dist` 复制到 Nginx 镜像；
-  2. 在部署脚本中先 `cd web && npm ci && npm run build`，再 `docker compose up -d --build`。
-- 推荐方案 1，部署只需一条 compose 命令；保持后端 Dockerfile 多阶段构建。
-- 生产 Nginx 已加 CSP/HSTS/X-Frame-Options/Referrer-Policy；上服务器后验证响应头。
+- `deploy/nginx/Dockerfile` 在 Node 阶段构建前端，Nginx 镜像直接托管 `dist`；`docker compose up -d --build` 可从空环境启动。
+- 2C2G 或镜像源慢时使用预构建方式：`docker compose -f docker-compose.yml -f docker-compose.prebuilt.yml up -d --build`，产物放 `deploy/artifacts/`（已 gitignore）。
+- 生产 Nginx 已加 CSP/HSTS/X-Frame-Options/Referrer-Policy；上线后验证通过。
 
-### 2.4 压测
+### 2.4 压测（已完成）
 
-- 新增 `perf/login.js`（k6）：登录成功、错误密码、锁定触发三条场景。
-- 输出报告到 `docs/perf/`；不设硬性性能门槛，记录环境、并发、P95/P99。
+- `perf/login.js`：成功登录、错误密码、锁定触发三条场景。
+- 报告 `docs/perf/README.md` 与原始输出 `docs/perf/login-2026-11-23.txt`。
+- 成功场景 52 次 0 失败，P95 174ms；第 6 次失败返回 40102。
 
-### 2.5 部署与验收
+### 2.5 部署与验收（已完成，域名证书待补）
 
-- 云服务器规格确认（建议 2 核 4G）。
-- TLS 证书（Let's Encrypt / 云厂商 DV / 自签用于内网）。
-- 启动顺序：MySQL/Redis → 后端健康 → Nginx。
-- 验收：注册 → 登录 → 改密 → 注销 → 恢复；管理员封禁/解封/重置；CSP 不阻断页面。
+- 阿里云 2 核 2G，Ubuntu 24.04，2G swap；旧容器已停止并取消自启。
+- 启动顺序由 compose 健康检查保证：MySQL/Redis → app → Nginx。
+- HTTPS 验收通过：登录、`/users/me`、`/admin/users` 均 200；安全头齐全；CSP 下页面正常渲染。
+- 当前使用 IP 自签证书；有域名后按 `deploy/nginx/README.md` 换 Let's Encrypt。
 
 ### 2.6 可选优化
 
