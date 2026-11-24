@@ -5,7 +5,7 @@
 | 项目 | 内容 |
 |---|---|
 | 文档名称 | 用户中心（统一认证服务）设计文档 |
-| 文档版本 | v0.21 |
+| 文档版本 | v0.22 |
 | 文档状态 | 评审中 |
 | 编写日期 | 2026-11-13 |
 | 适用范围 | user-center 服务与配套 Web 前端的设计、开发、测试与部署 |
@@ -36,6 +36,7 @@
 | v0.19 | 2026-11-19 | — | 阶段 3 管理员接口落地：分页查询、封禁/解封、随机密码重置；Flyway V2 索引 |
 | v0.20 | 2026-11-19 | — | 阶段 4 注销/恢复落地：DELETE 验证码场景、封禁账号不可恢复、重复注销幂等；Flyway V3 管理员审计表 |
 | v0.21 | 2026-11-20 | — | 阶段 5 Web 前端落地：Vue 3 + Element Plus、三页路由、sessionStorage + Axios ProblemDetail、CSP；Vitest |
+| v0.22 | 2026-11-25 | — | 补管理端关键字搜索（FR-09/UI-03）；FR-07/08 与实现对齐（验证码确认）；更新交付物路径与预构建部署方式；补 pre-commit 钩子；记录阶段 6 与容量压测结论 |
 
 ## 1. 引言
 
@@ -133,8 +134,8 @@
 | FR-04 | 当前用户 | 返回脱敏后的用户信息 | 高 |
 | FR-05 | 修改密码 | 校验旧密码，成功后所有令牌失效 | 高 |
 | FR-06 | 忘记密码 | 邮箱验证码重置密码 | 高 |
-| FR-07 | 注销 | 密码确认，逻辑删除，令牌失效，管理员不可自助注销 | 中 |
-| FR-08 | 恢复 | 原密码或邮箱验证码验证后恢复账号，令牌版本自增 | 中 |
+| FR-07 | 注销 | 邮箱验证码确认，逻辑删除，令牌失效，管理员不可自助注销 | 中 |
+| FR-08 | 恢复 | 邮箱验证码 + 新密码验证后恢复账号，令牌版本自增 | 中 |
 | FR-09 | 管理员查询 | 按用户名/邮箱/状态分页查询 | 高 |
 | FR-10 | 管理员封禁/解封 | 封禁后旧令牌失效，登录被拒 | 高 |
 | FR-11 | 管理员重置密码 | 生成随机密码一次性返回，不记录日志，令牌版本自增 | 高 |
@@ -358,11 +359,12 @@ Nginx（HTTPS、静态前端、反向代理、可信 X-Forwarded-For）
 - `docker-compose.yml`：应用、MySQL、Redis、Nginx 编排，配置通过环境变量注入
 - `.env.example`：完整配置项模板，不含真实凭据
 - `web/`：Vue 3 前端源码与构建说明
-- `.editorconfig`、`checkstyle.xml`、`.githooks/pre-commit`
+- `.editorconfig`、`config/checkstyle/checkstyle.xml`、`.githooks/pre-commit`
 - 部署说明：初始化 SQL、启动步骤、健康检查
 - `.github/workflows/ci.yml`：编译、单元测试、集成测试（Testcontainers）
-- `perf/login.js`、`docs/perf.md`：压测脚本与结果报告
-- 部署方式：CI 通过后手动执行 `docker compose pull && docker compose up -d`
+- `perf/login.js`、`perf/auth-load.js`、`docs/perf/`：压测脚本与结果报告
+- 部署方式：本地/CI 预构建 `deploy/artifacts/app.jar` 与 `deploy/artifacts/web/`，服务器执行
+  `docker compose -f docker-compose.yml -f docker-compose.prebuilt.yml up -d --build`
 
 ## 10. 测试策略
 

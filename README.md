@@ -55,6 +55,14 @@ npm run dev
 - 默认地址：`http://localhost:5173`
 - `/api` 由 Vite 代理到 `http://localhost:8080`；生产由 Nginx 托管 `web/dist` 并反代 `/api`。
 
+## 提交前检查
+
+```bash
+git config core.hooksPath .githooks
+```
+
+钩子只做格式检查（Java/XML 走 Spotless，`web/` 走 ESLint），不跑测试；CI 仍是强制关口，钩子可用 `--no-verify` 绕过。
+
 ## 测试
 
 ```bash

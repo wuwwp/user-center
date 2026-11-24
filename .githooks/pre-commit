@@ -1,0 +1,25 @@
+#!/bin/sh
+# 提交前只做格式/静态检查，不跑测试；钩子可被 --no-verify 绕过，CI 才是强制关口。
+# 启用：git config core.hooksPath .githooks
+
+set -e
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
+if [ -z "$staged" ]; then
+  exit 0
+fi
+
+if echo "$staged" | grep -qE '\.(java|xml)$'; then
+  echo "[pre-commit] 检查 Java/XML 格式（spotless）..."
+  ./mvnw -q spotless:check
+fi
+
+if echo "$staged" | grep -qE '^web/.*\.(ts|js|vue|css|json)$'; then
+  if [ -d web/node_modules ]; then
+    echo "[pre-commit] 检查前端（eslint）..."
+    (cd web && npm run lint --silent)
+  else
+    echo "[pre-commit] 跳过前端检查：web/node_modules 不存在，先执行 npm install" >&2
+  fi
+fi
