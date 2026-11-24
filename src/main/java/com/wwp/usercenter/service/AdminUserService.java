@@ -8,8 +8,8 @@ import com.wwp.usercenter.model.enums.UserStatus;
 /** 管理端用户查询与状态操作。 */
 public interface AdminUserService {
 
-  /** 分页查询未注销用户；status 为空时不过滤。 */
-  PageResult<UserSummaryDTO> listUsers(int page, int size, UserStatus status);
+  /** 分页查询未注销用户；status 为空时不按状态过滤，keyword 按邮箱或对外账号模糊匹配。 */
+  PageResult<UserSummaryDTO> listUsers(int page, int size, UserStatus status, String keyword);
 
   /**
    * 封禁或解封用户，自增 token_version 使旧令牌立即失效。

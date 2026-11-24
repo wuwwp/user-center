@@ -37,8 +37,10 @@ public class AdminController {
   public PageResult<UserSummaryDTO> list(
       @RequestParam(defaultValue = "1") @Min(1) int page,
       @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size,
-      @RequestParam(required = false) UserStatus status) {
-    return adminUserService.listUsers(page, size, status);
+      @RequestParam(required = false) UserStatus status,
+      @RequestParam(required = false) @Size(max = ValidationConstants.EMAIL_MAX_LENGTH)
+          String keyword) {
+    return adminUserService.listUsers(page, size, status, keyword);
   }
 
   @PutMapping("/{account}/status")

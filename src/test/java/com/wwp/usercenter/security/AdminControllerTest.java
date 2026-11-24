@@ -48,7 +48,7 @@ class AdminControllerTest {
   @Test
   void should_return_user_page_for_admin() throws Exception {
     adminToken();
-    given(adminUserService.listUsers(1, 10, null))
+    given(adminUserService.listUsers(1, 10, null, null))
         .willReturn(
             new PageResult<>(
                 List.of(
@@ -72,6 +72,21 @@ class AdminControllerTest {
         .andExpect(jsonPath("$.items[0].emailMasked").value("a***@example.com"))
         .andExpect(jsonPath("$.total").value(1))
         .andExpect(jsonPath("$.totalPages").value(1));
+  }
+
+  @Test
+  void should_pass_keyword_to_service() throws Exception {
+    adminToken();
+    given(adminUserService.listUsers(2, 20, UserStatus.NORMAL, "ali"))
+        .willReturn(new PageResult<>(List.of(), 0, 2, 20, 0));
+
+    mockMvc
+        .perform(
+            get("/api/v1/admin/users?page=2&size=20&status=NORMAL&keyword=ali")
+                .header("Authorization", "Bearer admin-token"))
+        .andExpect(status().isOk());
+
+    then(adminUserService).should().listUsers(2, 20, UserStatus.NORMAL, "ali");
   }
 
   @Test

@@ -31,9 +31,10 @@ public class AdminUserServiceImpl implements AdminUserService {
   private final PasswordEncoder passwordEncoder;
 
   @Override
-  public PageResult<UserSummaryDTO> listUsers(int page, int size, UserStatus status) {
+  public PageResult<UserSummaryDTO> listUsers(
+      int page, int size, UserStatus status, String keyword) {
     Page<User> pageRequest = new Page<>(page, size);
-    IPage<User> result = userMapper.selectAdminUserPage(pageRequest, status);
+    IPage<User> result = userMapper.selectAdminUserPage(pageRequest, status, likePattern(keyword));
     List<UserSummaryDTO> items =
         result.getRecords().stream().map(AdminUserServiceImpl::toSummary).toList();
     return new PageResult<>(
@@ -74,6 +75,18 @@ public class AdminUserServiceImpl implements AdminUserService {
       throw new BusinessException(ErrorCode.NOT_FOUND);
     }
     return user;
+  }
+
+  /** 关键字去空白后转义 like 通配符；空串视为不过滤，避免用户输入 % 或 _ 时匹配全表。 */
+  private static String likePattern(String keyword) {
+    if (keyword == null) {
+      return null;
+    }
+    String trimmed = keyword.trim();
+    if (trimmed.isEmpty()) {
+      return null;
+    }
+    return trimmed.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
   }
 
   private static UserSummaryDTO toSummary(User user) {

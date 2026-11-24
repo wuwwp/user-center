@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
@@ -44,9 +45,9 @@ class AdminUserServiceImplTest {
     Page<User> page = new Page<>(1, 10);
     page.setRecords(List.of(user));
     page.setTotal(1);
-    given(userMapper.selectAdminUserPage(any(), any())).willReturn(page);
+    given(userMapper.selectAdminUserPage(any(), any(), any())).willReturn(page);
 
-    PageResult<UserSummaryDTO> result = service.listUsers(1, 10, null);
+    PageResult<UserSummaryDTO> result = service.listUsers(1, 10, null, null);
 
     assertThat(result.total()).isEqualTo(1);
     assertThat(result.page()).isEqualTo(1);
@@ -55,6 +56,15 @@ class AdminUserServiceImplTest {
     assertThat(result.items()).hasSize(1);
     assertThat(result.items().get(0).userAccount()).isEqualTo("u00000002");
     assertThat(result.items().get(0).emailMasked()).isEqualTo("a***@example.com");
+  }
+
+  @Test
+  void should_escape_like_wildcards_and_trim_keyword() {
+    given(userMapper.selectAdminUserPage(any(), any(), any())).willReturn(new Page<>(1, 10));
+
+    service.listUsers(1, 10, null, "  a%b_c\\d  ");
+
+    then(userMapper).should().selectAdminUserPage(any(), isNull(), eq("a\\%b\\_c\\\\d"));
   }
 
   @Test

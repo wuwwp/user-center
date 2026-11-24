@@ -22,6 +22,10 @@
         <if test="status != null">
             and status = #{status}
         </if>
+        <if test="keyword != null and keyword != ''">
+            and (email like concat('%', #{keyword}, '%')
+                 or user_account like concat('%', #{keyword}, '%'))
+        </if>
         order by id desc
     </select>
 

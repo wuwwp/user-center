@@ -16,7 +16,8 @@ public interface UserMapper extends BaseMapper<User> {
   User selectCurrentUserById(@Param("userId") Long userId);
 
   /** 管理端分页投影，只取展示列。 */
-  IPage<User> selectAdminUserPage(IPage<User> page, @Param("status") UserStatus status);
+  IPage<User> selectAdminUserPage(
+      IPage<User> page, @Param("status") UserStatus status, @Param("keyword") String keyword);
 
   /** 管理端按对外账号取状态列，不加载密码哈希。 */
   User selectAdminStateByAccount(@Param("account") String account);

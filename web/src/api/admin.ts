@@ -5,6 +5,7 @@ export interface ListUsersParams {
   page: number
   size: number
   status?: UserStatus | ''
+  keyword?: string
 }
 
 export function listUsers(params: ListUsersParams): Promise<PageResult<UserSummary>> {
@@ -14,6 +15,7 @@ export function listUsers(params: ListUsersParams): Promise<PageResult<UserSumma
         page: params.page,
         size: params.size,
         status: params.status || undefined,
+        keyword: params.keyword?.trim() || undefined,
       },
     })
     .then((response) => response.data)

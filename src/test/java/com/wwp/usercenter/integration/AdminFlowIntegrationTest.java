@@ -120,6 +120,30 @@ class AdminFlowIntegrationTest extends IntegrationTestSupport {
     changeStatus(adminToken, "u00000000", UserStatus.NORMAL).andExpect(status().isNotFound());
   }
 
+  @Test
+  void should_search_admin_list_by_account_and_email() throws Exception {
+    User target = createUser(UserRole.USER, "SearchPassw0rd1");
+    String adminToken = login(admin.getEmail(), "AdminPassw0rd1");
+
+    mockMvc
+        .perform(
+            get("/api/v1/admin/users")
+                .param("keyword", target.getUserAccount())
+                .header("Authorization", "Bearer " + adminToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.total").value(1))
+        .andExpect(jsonPath("$.items[0].userAccount").value(target.getUserAccount()));
+
+    mockMvc
+        .perform(
+            get("/api/v1/admin/users")
+                .param("keyword", target.getEmail())
+                .header("Authorization", "Bearer " + adminToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.total").value(1))
+        .andExpect(jsonPath("$.items[0].userAccount").value(target.getUserAccount()));
+  }
+
   private User createUser(UserRole role, String password) {
     return createUser(role, password, UserStatus.NORMAL, DeletedFlag.NOT_DELETED);
   }

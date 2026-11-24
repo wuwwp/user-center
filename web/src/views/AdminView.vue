@@ -13,6 +13,7 @@ const total = ref(0)
 const page = ref(1)
 const size = ref(10)
 const statusFilter = ref<UserStatus | ''>('')
+const keyword = ref('')
 
 const resetDialogVisible = ref(false)
 const resetResult = ref<AdminPasswordResetResult | null>(null)
@@ -25,6 +26,7 @@ async function loadUsers(): Promise<void> {
       page: page.value,
       size: size.value,
       status: statusFilter.value,
+      keyword: keyword.value,
     })
     rows.value = result.items
     total.value = result.total
@@ -36,6 +38,11 @@ async function loadUsers(): Promise<void> {
 }
 
 function handleFilterChange(): void {
+  page.value = 1
+  void loadUsers()
+}
+
+function handleSearch(): void {
   page.value = 1
   void loadUsers()
 }
@@ -142,6 +149,18 @@ onMounted(loadUsers)
     <section class="surface-card">
       <div class="toolbar">
         <div class="toolbar-group">
+          <el-input
+            v-model="keyword"
+            placeholder="邮箱或账号"
+            clearable
+            class="keyword-input"
+            @keyup.enter="handleSearch"
+            @clear="handleSearch"
+          >
+            <template #append>
+              <el-button @click="handleSearch">搜索</el-button>
+            </template>
+          </el-input>
           <span class="toolbar-label">状态</span>
           <el-select
             v-model="statusFilter"
@@ -304,6 +323,10 @@ onMounted(loadUsers)
 .toolbar-label {
   color: var(--uc-muted);
   font-size: 13px;
+}
+
+.keyword-input {
+  width: 240px;
 }
 
 .status-select {
