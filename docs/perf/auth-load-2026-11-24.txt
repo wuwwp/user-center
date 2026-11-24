@@ -103,6 +103,14 @@ mysql CPU     2–9%              1–10%
 下一步若要提吞吐，只能加机器/加实例，或换更轻的哈希（注意：BCrypt 校验成本由已存哈希的
 cost 决定，降低编码强度只影响新密码，对存量用户无效）。
 
+附加实验：把 -XX:+UseSerialGC 换成 JDK 21 默认 G1，其余不变再跑一次登录
+               SerialGC          G1
+tier1 P95     254ms             268ms
+tier2 P95     5.17s             4.71s
+tier3 P95     5.06s             5.44s
+吞吐          18.6 req/s        17.9 req/s
+两次之间的波动（tier2 差 10%）大于两种 GC 的差异，结论：GC 也不是瓶颈，已回退 SerialGC。
+
 未覆盖
 ------
 - POST /api/v1/auth/email/code 的真实并发能力：单 IP 每日 50 次的限频是设计约束，
