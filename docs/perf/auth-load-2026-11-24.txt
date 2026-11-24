@@ -128,6 +128,16 @@ cost    吞吐         tier1 P95   tier2 P95   tier3 P95
 - OWASP 建议 work factor ≥ 10 并按硬件调到单次约 100ms；本机 cost 10 约 60ms，
   已在建议区间内，继续下调属于可用性换安全的取舍
 
+附加实验：GC 停顿量化（同一登录场景，加 -Xlog:gc）
+---------------------------------------------
+进程运行 112 秒内共 66 次 GC，累计停顿 776ms，占 0.7%；
+3 次 Full GC 全部发生在启动阶段（2.5–7.9s，Metadata GC Threshold），
+测试期间只有 Young GC，单次 5–6ms。容器内 swap 使用为 0，进程线程数 33。
+
+结论：内存没有构成压力，GC 没有抢 CPU，排除“内存紧张导致调度开销”。
+按 cost 8 / 10 两轮吞吐倒推，每次登录约 104ms CPU，其中 BCrypt 约 68ms、
+其余约 36ms 来自 JSON、JWT、Redis/MySQL 往返与日志，属于正常业务成本。
+
 未覆盖
 ------
 - POST /api/v1/auth/email/code 的真实并发能力：单 IP 每日 50 次的限频是设计约束，
