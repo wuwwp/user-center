@@ -18,8 +18,9 @@ spring:
     username: ${DB_USERNAME:usercenter}
     password: ${DB_PASSWORD:}
     hikari:
-      maximum-pool-size: 10
-      minimum-idle: 2
+      # 压测结论：BCrypt 占满 CPU 时，10 个连接会让排队线程 3 秒超时直接 500
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
       connection-timeout: 3000
   flyway:
     # 生产只跑版本化迁移；开发 profile 会追加 classpath:db/dev

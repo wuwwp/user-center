@@ -30,7 +30,8 @@
 - CI：后端 `verify` + 前端 `web` job（Node 24、audit、lint、Vitest、build）
 - 生产验收：HTTPS 登录、`/users/me`、`/admin/users` 均 200；CSP/HSTS 等安全头存在
 - 压测：成功登录 52 次 0 失败，P95 174ms；第 6 次失败触发 40102
-- 容量压测（10 万数据）：登录/注册/重置约 20 rps，改密 5–8 rps；瓶颈是 app CPU + Hikari 10 连接
+- 容量压测（10 万数据）：登录/注册/重置约 20 rps，改密 5–8 rps；瓶颈是 app CPU
+- 压测后调优：Hikari 连接池 10 → 20，500 消失、吞吐不变（CPU 仍是上限）
 
 ## 环境
 
@@ -44,7 +45,7 @@
 ## 下一步
 
 1. 域名 A 记录指向服务器，换 Let's Encrypt 证书，去掉浏览器自签警告
-2. 可选：按容量压测结论调大 Hikari 池、评估 BCrypt 并发策略
+2. 可选：压测确认 CPU 是上限，评估加实例/加机器，或换更轻的哈希（仅影响新密码）
 3. 可选：Element Plus 按需引入，降低主包体积
 4. 可选：Lua 原子化 `INCR + EXPIRE`、验证码 `GET + DEL`
 5. 可选：注销数据保留/匿名化策略

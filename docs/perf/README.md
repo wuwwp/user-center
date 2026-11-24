@@ -109,4 +109,5 @@ docker compose exec -T mysql mysql -uroot -p"$DB_ROOT_PASSWORD" usercenter < per
 | 修改密码 | ≤10 rps | 987ms | 10→20 rps 起 5.9s |
 
 瓶颈是应用 CPU（BCrypt）先打满，随后 Hikari 默认 10 个连接被耗尽，超时 3 秒后返回 500；MySQL 全程 CPU < 10%。
+把连接池调到 20 后 500 消失，但吞吐与 P95 不变——CPU 才是硬上限。
 完整数据与归因见 `docs/perf/auth-load-2026-11-24.txt`。
