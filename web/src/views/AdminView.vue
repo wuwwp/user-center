@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AppShell from '@/layouts/AppShell.vue'
 import { changeUserStatus, listUsers, resetUserPassword } from '@/api/admin'
 import { notifyApiError } from '@/api/errors'
 import type { AdminPasswordResetResult, UserStatus, UserSummary } from '@/api/types'
-import { roleLabel, statusLabel } from '@/labels'
+import {
+  nextStatus,
+  roleLabel,
+  roleTagType,
+  statusActionLabel,
+  statusLabel,
+  statusTagType,
+} from '@/labels'
 
 const loading = ref(false)
 const rows = ref<UserSummary[]>([])
@@ -15,8 +22,16 @@ const size = ref(10)
 const statusFilter = ref<UserStatus | ''>('')
 const keyword = ref('')
 
-const resetDialogVisible = ref(false)
 const resetResult = ref<AdminPasswordResetResult | null>(null)
+// 弹窗可见性由结果本身推导，避免两个状态手工同步
+const resetDialogVisible = computed({
+  get: () => resetResult.value !== null,
+  set: (visible: boolean) => {
+    if (!visible) {
+      resetResult.value = null
+    }
+  },
+})
 const resetLoadingAccount = ref<string | null>(null)
 
 async function loadUsers(): Promise<void> {
@@ -37,33 +52,30 @@ async function loadUsers(): Promise<void> {
   }
 }
 
-function handleFilterChange(): void {
-  page.value = 1
-  void loadUsers()
-}
-
-function handleSearch(): void {
-  page.value = 1
+/** 筛选、搜索、改每页条数都要回到第一页；翻页保持当前页。 */
+function reload(resetPage = false): void {
+  if (resetPage) {
+    page.value = 1
+  }
   void loadUsers()
 }
 
 function handleSizeChange(nextSize: number): void {
   size.value = nextSize
-  page.value = 1
-  void loadUsers()
+  reload(true)
 }
 
 function handlePageChange(nextPage: number): void {
   page.value = nextPage
-  void loadUsers()
+  reload()
 }
 
 async function toggleStatus(row: UserSummary): Promise<void> {
-  const nextStatus: UserStatus = row.status === 'BANNED' ? 'NORMAL' : 'BANNED'
-  const action = nextStatus === 'BANNED' ? '封禁' : '解封'
+  const target = nextStatus(row.status)
+  const action = statusActionLabel(row.status)
   try {
     await ElMessageBox.confirm(
-      `确认${action}用户 ${row.userAccount}？${nextStatus === 'BANNED' ? '该用户当前令牌会立即失效。' : ''}`,
+      `确认${action}用户 ${row.userAccount}？${target === 'BANNED' ? '该用户当前令牌会立即失效。' : ''}`,
       `${action}用户`,
       { type: 'warning', confirmButtonText: `确认${action}`, cancelButtonText: '取消' },
     )
@@ -72,7 +84,7 @@ async function toggleStatus(row: UserSummary): Promise<void> {
   }
 
   try {
-    await changeUserStatus(row.userAccount, nextStatus)
+    await changeUserStatus(row.userAccount, target)
     ElMessage.success(`${action}成功`)
     await loadUsers()
   } catch (error) {
@@ -94,7 +106,6 @@ async function resetPassword(row: UserSummary): Promise<void> {
   resetLoadingAccount.value = row.userAccount
   try {
     resetResult.value = await resetUserPassword(row.userAccount)
-    resetDialogVisible.value = true
   } catch (error) {
     notifyApiError(error, '重置密码失败')
   } finally {
@@ -113,7 +124,6 @@ async function copyPassword(): Promise<void> {
 }
 
 function closeResetDialog(): void {
-  resetDialogVisible.value = false
   resetResult.value = null
 }
 
@@ -154,11 +164,11 @@ onMounted(loadUsers)
             placeholder="邮箱或账号"
             clearable
             class="keyword-input"
-            @keyup.enter="handleSearch"
-            @clear="handleSearch"
+            @keyup.enter="reload(true)"
+            @clear="reload(true)"
           >
             <template #append>
-              <el-button @click="handleSearch">搜索</el-button>
+              <el-button @click="reload(true)">搜索</el-button>
             </template>
           </el-input>
           <span class="toolbar-label">状态</span>
@@ -167,7 +177,7 @@ onMounted(loadUsers)
             placeholder="全部"
             clearable
             class="status-select"
-            @change="handleFilterChange"
+            @change="reload(true)"
           >
             <el-option label="全部" value="" />
             <el-option label="正常" value="NORMAL" />
@@ -191,14 +201,14 @@ onMounted(loadUsers)
         <el-table-column prop="emailMasked" label="邮箱" width="170" show-overflow-tooltip />
         <el-table-column label="角色" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.role === 'ADMIN' ? 'success' : 'info'" effect="plain">
+            <el-tag :type="roleTagType(row.role)" effect="plain">
               {{ roleLabel(row.role) }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="状态" width="80">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'BANNED' ? 'danger' : 'success'" effect="plain">
+            <el-tag :type="statusTagType(row.status)" effect="plain">
               {{ statusLabel(row.status) }}
             </el-tag>
           </template>
@@ -217,7 +227,7 @@ onMounted(loadUsers)
               plain
               @click="toggleStatus(row)"
             >
-              {{ row.status === 'BANNED' ? '解封' : '封禁' }}
+              {{ statusActionLabel(row.status) }}
             </el-button>
             <el-button
               size="small"

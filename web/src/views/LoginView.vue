@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
@@ -20,9 +20,7 @@ const router = useRouter()
 
 const activeTab = ref<TabName>('login')
 const loginLoading = ref(false)
-const registerLoading = ref(false)
-const resetLoading = ref(false)
-const recoverLoading = ref(false)
+const submitting = ref<EmailCodeTab | null>(null)
 
 const loginFormRef = ref<FormInstance>()
 const loginForm = reactive({ email: '', password: '' })
@@ -65,53 +63,51 @@ async function handleLogin(): Promise<void> {
   }
 }
 
-async function handleRegister(credentials: EmailCodeCredentials): Promise<void> {
-  registerLoading.value = true
-  try {
-    await register(credentials)
-    ElMessage.success('注册成功，请登录')
-    loginForm.email = credentials.email
-    activeTab.value = 'login'
-  } catch (error) {
-    notifyApiError(error, '注册失败，请检查信息')
-  } finally {
-    registerLoading.value = false
-  }
-}
+const emailCodeActions = {
+  register: {
+    call: (credentials: EmailCodeCredentials) => register(credentials),
+    success: '注册成功，请登录',
+    fallback: '注册失败，请检查信息',
+  },
+  reset: {
+    call: (credentials: EmailCodeCredentials) =>
+      resetPassword({
+        email: credentials.email,
+        code: credentials.code,
+        newPassword: credentials.password,
+      }),
+    success: '密码已重置，请使用新密码登录',
+    fallback: '重置失败，请检查验证码',
+  },
+  recover: {
+    call: (credentials: EmailCodeCredentials) =>
+      recoverAccount({
+        email: credentials.email,
+        code: credentials.code,
+        newPassword: credentials.password,
+      }),
+    success: '账号已恢复，请使用新密码登录',
+    fallback: '恢复失败，请确认账号已注销且验证码正确',
+  },
+} as const
 
-async function handleReset(credentials: EmailCodeCredentials): Promise<void> {
-  resetLoading.value = true
-  try {
-    await resetPassword({
-      email: credentials.email,
-      code: credentials.code,
-      newPassword: credentials.password,
-    })
-    ElMessage.success('密码已重置，请使用新密码登录')
-    loginForm.email = credentials.email
-    activeTab.value = 'login'
-  } catch (error) {
-    notifyApiError(error, '重置失败，请检查验证码')
-  } finally {
-    resetLoading.value = false
-  }
-}
+type EmailCodeTab = keyof typeof emailCodeActions
 
-async function handleRecover(credentials: EmailCodeCredentials): Promise<void> {
-  recoverLoading.value = true
+async function handleEmailCode(
+  tab: EmailCodeTab,
+  credentials: EmailCodeCredentials,
+): Promise<void> {
+  const action = emailCodeActions[tab]
+  submitting.value = tab
   try {
-    await recoverAccount({
-      email: credentials.email,
-      code: credentials.code,
-      newPassword: credentials.password,
-    })
-    ElMessage.success('账号已恢复，请使用新密码登录')
+    await action.call(credentials)
+    ElMessage.success(action.success)
     loginForm.email = credentials.email
     activeTab.value = 'login'
   } catch (error) {
-    notifyApiError(error, '恢复失败，请确认账号已注销且验证码正确')
+    notifyApiError(error, action.fallback)
   } finally {
-    recoverLoading.value = false
+    submitting.value = null
   }
 }
 
@@ -122,8 +118,7 @@ function applyTabFromQuery(): void {
   }
 }
 
-onMounted(applyTabFromQuery)
-watch(() => route.query.tab, applyTabFromQuery)
+watch(() => route.query.tab, applyTabFromQuery, { immediate: true })
 </script>
 
 <template>
@@ -191,35 +186,35 @@ watch(() => route.query.tab, applyTabFromQuery)
           <el-tab-pane label="注册" name="register">
             <EmailCodePasswordForm
               scene="register"
-              :loading="registerLoading"
+              :loading="submitting === 'register'"
               submit-text="创建账号"
-              @submit="handleRegister"
+              @submit="(credentials) => handleEmailCode('register', credentials)"
             />
           </el-tab-pane>
 
           <el-tab-pane label="忘记密码" name="reset">
             <EmailCodePasswordForm
               scene="reset"
-              :loading="resetLoading"
+              :loading="submitting === 'reset'"
               submit-text="重置密码"
               email-placeholder="注册时使用的邮箱"
               password-label="新密码"
               confirm-label="确认新密码"
               hint="验证码会发送到已注册且状态正常的邮箱。"
-              @submit="handleReset"
+              @submit="(credentials) => handleEmailCode('reset', credentials)"
             />
           </el-tab-pane>
 
           <el-tab-pane label="恢复账号" name="recover">
             <EmailCodePasswordForm
               scene="recover"
-              :loading="recoverLoading"
+              :loading="submitting === 'recover'"
               submit-text="恢复账号"
               email-placeholder="已注销账号的邮箱"
               password-label="新密码"
               confirm-label="确认新密码"
               hint="只有已注销且未被封禁的账号会收到恢复验证码。"
-              @submit="handleRecover"
+              @submit="(credentials) => handleEmailCode('recover', credentials)"
             />
           </el-tab-pane>
         </el-tabs>

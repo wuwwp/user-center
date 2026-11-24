@@ -26,10 +26,7 @@ public class UserServiceImpl implements UserService {
 
   @Override
   public CurrentUserDTO getCurrentUser(Long userId) {
-    User user = userMapper.selectCurrentUserById(userId);
-    if (user == null || user.isDeleted()) {
-      throw new BusinessException(ErrorCode.NOT_FOUND);
-    }
+    User user = requireNotDeleted(userMapper.selectCurrentUserById(userId));
     return new CurrentUserDTO(
         user.getUserAccount(), user.getNickname(), user.getEmail(), user.getRole());
   }
@@ -52,7 +49,10 @@ public class UserServiceImpl implements UserService {
   }
 
   private User requireNotDeletedUser(Long userId) {
-    User user = userMapper.selectById(userId);
+    return requireNotDeleted(userMapper.selectById(userId));
+  }
+
+  private static User requireNotDeleted(User user) {
     if (user == null || user.isDeleted()) {
       throw new BusinessException(ErrorCode.NOT_FOUND);
     }

@@ -12,6 +12,9 @@
 --   96001 .. 98000  干扰数据：封禁（status=1）
 --   98001 .. 100000 干扰数据：已注销（is_delete=1）
 
+-- 所有账号复用同一个 BCrypt(cost=10) 哈希，对应密码 PerfSeed123456
+set @seed_hash = '$2a$10$OXB8hCvj92uy7ivTYDjbN.9DPY0e35dm3JOG5QbyKYZHOLGp8qq0a';
+
 -- 递归 CTE 默认深度 1000，每批 1 万条需要放宽
 set session cte_max_recursion_depth = 20000;
 
@@ -27,7 +30,7 @@ select
     concat('perf', lpad(n, 6, '0')),
     concat('压测用户', n),
     concat('perf', lpad(n, 6, '0'), '@perf.local'),
-    '$2a$10$OXB8hCvj92uy7ivTYDjbN.9DPY0e35dm3JOG5QbyKYZHOLGp8qq0a',
+    @seed_hash,
     0,
     case when n between 96001 and 98000 then 1 else 0 end,
     case when n > 98000 then 1 else 0 end,
@@ -48,7 +51,7 @@ select
     concat('perf', lpad(n + 10000, 6, '0')),
     concat('压测用户', n + 10000),
     concat('perf', lpad(n + 10000, 6, '0'), '@perf.local'),
-    '$2a$10$OXB8hCvj92uy7ivTYDjbN.9DPY0e35dm3JOG5QbyKYZHOLGp8qq0a',
+    @seed_hash,
     0,
     case when n + 10000 between 96001 and 98000 then 1 else 0 end,
     case when n + 10000 > 98000 then 1 else 0 end,
@@ -69,7 +72,7 @@ select
     concat('perf', lpad(n + 20000, 6, '0')),
     concat('压测用户', n + 20000),
     concat('perf', lpad(n + 20000, 6, '0'), '@perf.local'),
-    '$2a$10$OXB8hCvj92uy7ivTYDjbN.9DPY0e35dm3JOG5QbyKYZHOLGp8qq0a',
+    @seed_hash,
     0,
     case when n + 20000 between 96001 and 98000 then 1 else 0 end,
     case when n + 20000 > 98000 then 1 else 0 end,
@@ -90,7 +93,7 @@ select
     concat('perf', lpad(n + 30000, 6, '0')),
     concat('压测用户', n + 30000),
     concat('perf', lpad(n + 30000, 6, '0'), '@perf.local'),
-    '$2a$10$OXB8hCvj92uy7ivTYDjbN.9DPY0e35dm3JOG5QbyKYZHOLGp8qq0a',
+    @seed_hash,
     0,
     case when n + 30000 between 96001 and 98000 then 1 else 0 end,
     case when n + 30000 > 98000 then 1 else 0 end,
@@ -111,7 +114,7 @@ select
     concat('perf', lpad(n + 40000, 6, '0')),
     concat('压测用户', n + 40000),
     concat('perf', lpad(n + 40000, 6, '0'), '@perf.local'),
-    '$2a$10$OXB8hCvj92uy7ivTYDjbN.9DPY0e35dm3JOG5QbyKYZHOLGp8qq0a',
+    @seed_hash,
     0,
     case when n + 40000 between 96001 and 98000 then 1 else 0 end,
     case when n + 40000 > 98000 then 1 else 0 end,
@@ -132,7 +135,7 @@ select
     concat('perf', lpad(n + 50000, 6, '0')),
     concat('压测用户', n + 50000),
     concat('perf', lpad(n + 50000, 6, '0'), '@perf.local'),
-    '$2a$10$OXB8hCvj92uy7ivTYDjbN.9DPY0e35dm3JOG5QbyKYZHOLGp8qq0a',
+    @seed_hash,
     0,
     case when n + 50000 between 96001 and 98000 then 1 else 0 end,
     case when n + 50000 > 98000 then 1 else 0 end,
@@ -153,7 +156,7 @@ select
     concat('perf', lpad(n + 60000, 6, '0')),
     concat('压测用户', n + 60000),
     concat('perf', lpad(n + 60000, 6, '0'), '@perf.local'),
-    '$2a$10$OXB8hCvj92uy7ivTYDjbN.9DPY0e35dm3JOG5QbyKYZHOLGp8qq0a',
+    @seed_hash,
     0,
     case when n + 60000 between 96001 and 98000 then 1 else 0 end,
     case when n + 60000 > 98000 then 1 else 0 end,
@@ -174,7 +177,7 @@ select
     concat('perf', lpad(n + 70000, 6, '0')),
     concat('压测用户', n + 70000),
     concat('perf', lpad(n + 70000, 6, '0'), '@perf.local'),
-    '$2a$10$OXB8hCvj92uy7ivTYDjbN.9DPY0e35dm3JOG5QbyKYZHOLGp8qq0a',
+    @seed_hash,
     0,
     case when n + 70000 between 96001 and 98000 then 1 else 0 end,
     case when n + 70000 > 98000 then 1 else 0 end,
@@ -195,7 +198,7 @@ select
     concat('perf', lpad(n + 80000, 6, '0')),
     concat('压测用户', n + 80000),
     concat('perf', lpad(n + 80000, 6, '0'), '@perf.local'),
-    '$2a$10$OXB8hCvj92uy7ivTYDjbN.9DPY0e35dm3JOG5QbyKYZHOLGp8qq0a',
+    @seed_hash,
     0,
     case when n + 80000 between 96001 and 98000 then 1 else 0 end,
     case when n + 80000 > 98000 then 1 else 0 end,
@@ -216,7 +219,7 @@ select
     concat('perf', lpad(n + 90000, 6, '0')),
     concat('压测用户', n + 90000),
     concat('perf', lpad(n + 90000, 6, '0'), '@perf.local'),
-    '$2a$10$OXB8hCvj92uy7ivTYDjbN.9DPY0e35dm3JOG5QbyKYZHOLGp8qq0a',
+    @seed_hash,
     0,
     case when n + 90000 between 96001 and 98000 then 1 else 0 end,
     case when n + 90000 > 98000 then 1 else 0 end,

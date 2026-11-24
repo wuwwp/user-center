@@ -48,14 +48,7 @@ const NAMES = {
   login: 'auth_login',
   register: 'auth_register',
   reset: 'auth_reset',
-  changePassword: 'user_change_password',
-}
-
-const MEASURED = {
-  login: NAMES.login,
-  register: NAMES.register,
-  reset: NAMES.reset,
-  change: NAMES.changePassword,
+  change: 'user_change_password',
 }
 
 if (!(SCENARIO in RATE_PROFILES)) {
@@ -126,7 +119,7 @@ function registerEmail() {
 
 function buildThresholds() {
   const thresholds = {
-    [`http_req_failed{name:${MEASURED[SCENARIO]}}`]: ['rate<0.01'],
+    [`http_req_failed{name:${NAMES[SCENARIO]}}`]: ['rate<0.01'],
   }
   if (SCENARIO === 'change') {
     // 改密场景额外包含一次登录，单独统计，避免登录失败被误记成改密失败
@@ -135,7 +128,7 @@ function buildThresholds() {
   // 即使不设硬门槛，也要按档位声明一次，k6 才会在结果里分档输出 P95
   for (let tier = 1; tier <= RATES.length; tier += 1) {
     const limit = SCENARIO === 'login' ? 1000 : 5000
-    thresholds[`http_req_duration{name:${MEASURED[SCENARIO]},tier:${tier}}`] = [`p(95)<${limit}`]
+    thresholds[`http_req_duration{name:${NAMES[SCENARIO]},tier:${tier}}`] = [`p(95)<${limit}`]
   }
   return thresholds
 }
@@ -216,7 +209,7 @@ function changePassword(tier) {
     JSON.stringify({ oldPassword: SEED_PASSWORD, newPassword: NEW_PASSWORD }),
     {
       headers: { ...JSON_HEADERS, Authorization: `Bearer ${token}` },
-      tags: { name: NAMES.changePassword, tier },
+      tags: { name: NAMES.change, tier },
     },
   )
   check(response, {

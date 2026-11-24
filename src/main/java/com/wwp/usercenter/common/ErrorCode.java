@@ -8,8 +8,6 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum ErrorCode {
-  SUCCESS(0, HttpStatus.OK, "ok"),
-
   PARAM_INVALID(40000, HttpStatus.BAD_REQUEST, "参数校验失败"),
   VERIFY_CODE_INVALID(40001, HttpStatus.BAD_REQUEST, "验证码错误"),
   VERIFY_CODE_EXPIRED(40002, HttpStatus.BAD_REQUEST, "验证码已过期"),

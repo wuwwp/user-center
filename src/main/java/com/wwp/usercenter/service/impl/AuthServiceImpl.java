@@ -79,14 +79,13 @@ public class AuthServiceImpl implements AuthService {
     loginAttemptService.ensureLoginAllowed(email, clientIp);
 
     User user = findByNormalizedEmail(email);
-    if (user == null) {
-      passwordEncoder.matches(param.password(), dummyPasswordHash);
+    // 账号不存在时也跑一次 BCrypt，避免通过响应时间区分邮箱是否已注册
+    String passwordHash = user == null ? dummyPasswordHash : user.getPasswordHash();
+    if (!passwordEncoder.matches(param.password(), passwordHash)) {
       loginAttemptService.recordFailure(email, clientIp);
-      throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
-    }
-    if (!passwordEncoder.matches(param.password(), user.getPasswordHash())) {
-      loginAttemptService.recordFailure(email, clientIp);
-      log.warn("login failed, userId={}", user.getId());
+      if (user != null) {
+        log.warn("login failed, userId={}", user.getId());
+      }
       throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
     }
     // 凭证已通过，账号状态问题不应继续累计失败次数

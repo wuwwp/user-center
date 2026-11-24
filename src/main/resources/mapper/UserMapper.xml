@@ -23,8 +23,8 @@
             and status = #{status}
         </if>
         <if test="keyword != null and keyword != ''">
-            and (email like concat('%', #{keyword}, '%')
-                 or user_account like concat('%', #{keyword}, '%'))
+            and (email like concat('%', #{keyword}, '%') escape '\\'
+                 or user_account like concat('%', #{keyword}, '%') escape '\\')
         </if>
         order by id desc
     </select>
@@ -36,14 +36,16 @@
           and is_delete = 0
     </select>
 
+    <sql id="lifecycleColumns">id, email, role, status, is_delete, token_version</sql>
+
     <select id="selectLifecycleStateById" resultType="com.wwp.usercenter.model.entity.User">
-        select id, email, role, status, is_delete, token_version
+        select <include refid="lifecycleColumns"/>
         from `user`
         where id = #{userId}
     </select>
 
     <select id="selectRecoverStateByEmail" resultType="com.wwp.usercenter.model.entity.User">
-        select id, email, role, status, is_delete, token_version
+        select <include refid="lifecycleColumns"/>
         from `user`
         where email = #{email}
     </select>

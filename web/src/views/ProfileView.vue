@@ -8,8 +8,8 @@ import { changePassword, deleteAccount } from '@/api/user'
 import { notifyApiError } from '@/api/errors'
 import { useAuthStore } from '@/stores/auth'
 import { useCodeSender } from '@/composables/useCodeSender'
-import { confirmRule, passwordRule } from '@/utils/formRules'
-import { roleLabel } from '@/labels'
+import { CODE_MESSAGE, CODE_PATTERN, confirmRule, passwordRule } from '@/utils/formRules'
+import { roleLabel, roleTagType } from '@/labels'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -64,8 +64,8 @@ async function requestDeleteCode(): Promise<void> {
 }
 
 async function handleDelete(): Promise<void> {
-  if (!/^\d{6}$/.test(deleteCode.value)) {
-    ElMessage.warning('请输入 6 位验证码')
+  if (!CODE_PATTERN.test(deleteCode.value)) {
+    ElMessage.warning(CODE_MESSAGE)
     return
   }
   try {
@@ -111,7 +111,7 @@ function openDeleteDialog(): void {
       <section class="surface-card">
         <header class="section-header">
           <h2>账号资料</h2>
-          <el-tag :type="auth.isAdmin ? 'success' : 'info'" effect="plain">
+          <el-tag :type="roleTagType(auth.user?.role)" effect="plain">
             {{ roleLabel(auth.user?.role) }}
           </el-tag>
         </header>
